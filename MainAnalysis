@@ -4,7 +4,7 @@ from astropy.io import fits
 import pickle
 from scipy.optimize import curve_fit
 
-#%%
+#%% Don't run this file all the time
 # Check the contents of the FITS file
 hdulist = fits.open('A1_mosaic.fits')
 with open('hdulist.pickle', 'wb') as f:
@@ -13,10 +13,44 @@ with open('hdulist.pickle', 'wb') as f:
 with open('hdulist.pickle', 'rb') as f:
     data = pickle.load(f)
 
-###### PLOTTING A HISTOGRAM OF THE PIXEL COUNTS ######
+print(np.shape(data))
+print(type(data))
+
+#### SEE THE IMAGE ######
+plt.imshow(data, cmap='gray')
+plt.colorbar()
+plt.show()
+#### CROPPING THE EDGES OF THE IMAGE ######
+edge_val = data[0][0]
+# find the height of the border
+for i in range(len(data[100][:])):
+    if data[100][i] == edge_val:
+        continue
+    elif data[100][i] != edge_val:
+        height = i + 100
+        break
+# find the width of the border
+for i in range(len(data[:][100])):
+    if data[i][100] == edge_val:
+        continue
+    elif data[i][100] != edge_val:
+        width = i + 100
+        break
+
+#cropping picture 
+#data = data[width:4610-width][height:2569-height]
+data = data[width:4610-width,height:2569-height]
+
+print(np.shape(data))
+
+#### SEE THE IMAGE ######
+plt.imshow(data, cmap='gray')
+plt.colorbar()
+plt.show()
+#%%### PLOTTING A HISTOGRAM OF THE PIXEL COUNTS ######
 data_flat = np.ravel(data) # change into one long list of the data
 # find the histogram points
-hist_y, hist_edges = np.histogram(data_flat, bins=5000)  
+hist_y, hist_edges = np.histogram(data_flat, bins=2000)  
 hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
 hist_error = np.sqrt(hist_y)
 # curve_fit a Gaussian
@@ -26,13 +60,41 @@ hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
 x_hist_fit = np.linspace(3300, 3650, 1000)
 plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
 plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
-plt.hist(data_flat, bins=5000, label ='Pixel Counts')
-plt.xlim(3300,3650)
+print(len(data_flat))
+plt.hist(data_flat, bins=2000, label ='Pixel Counts')
+plt.xlim(3300,3650) #zoom into background (5000 bins used)
+# plt.ylim(0,20)
+# plt.xlim(30000,66000) #zoom into edge of  upper tail
 plt.legend()
 plt.show()
 
 background_count = hist_fit[1]
 background_spread = hist_fit[2]
+
+#%%### MASKING ARRAY ######
+mask_array = np.ones(np.shape(data)) # initially all 1's
+
+background_cut_off = background_count + 3 * background_spread
+
+# removes the brightes points (must be bleeding)
+max_val = np.max(data_flat)
+max_i = np.array(np.where(data >= 5.4e4)) # first row = x values, second row = y values
+x_max_i = max_i[0,:]
+y_max_i = max_i[1,:]
+# remove points below our maximum value
+min_i = np.array(np.where(data <= background_cut_off))
+x_min_i = min_i[0,:]
+y_min_i = min_i[1,:]
+
+for k in range(len(x_max_i)):
+        mask_array[x_max_i[k],y_max_i[k]] = 0
+for j in range(len(x_min_i)):
+        mask_array[x_min_i[j],y_min_i[j]] = 0
+        
+data_bleed = mask_array * data
+plt.imshow(data_bleed, cmap='gray')
+plt.colorbar()
+plt.show()
 
 #%% PRINTING THE USEFUL VALUES
 print(f'{background_count= :.5f}')
