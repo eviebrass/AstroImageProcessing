@@ -1,0 +1,39 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.io import fits
+import pickle
+from scipy.optimize import curve_fit
+
+#%%
+# Check the contents of the FITS file
+hdulist = fits.open('A1_mosaic.fits')
+with open('hdulist.pickle', 'wb') as f:
+    pickle.dump(hdulist[0].data, f)
+#%%
+with open('hdulist.pickle', 'rb') as f:
+    data = pickle.load(f)
+
+###### PLOTTING A HISTOGRAM OF THE PIXEL COUNTS ######
+data_flat = np.ravel(data) # change into one long list of the data
+# find the histogram points
+hist_y, hist_edges = np.histogram(data_flat, bins=5000)  
+hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
+hist_error = np.sqrt(hist_y)
+# curve_fit a Gaussian
+def gaussian(data, A, mean, sigma):
+    return A*np.exp(-1*(data - mean)**2 / (2*sigma*sigma))
+hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
+x_hist_fit = np.linspace(3300, 3650, 1000)
+plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
+plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
+plt.hist(data_flat, bins=5000, label ='Pixel Counts')
+plt.xlim(3300,3650)
+plt.legend()
+plt.show()
+
+background_count = hist_fit[1]
+background_spread = hist_fit[2]
+
+#%% PRINTING THE USEFUL VALUES
+print(f'{background_count= :.5f}')
+print(f'{background_spread= :.5f}')
