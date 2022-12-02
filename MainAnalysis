@@ -40,6 +40,7 @@ for i in range(len(data[:][100])):
 #cropping picture 
 #data = data[width:4610-width][height:2569-height]
 data = data[width:4610-width,height:2569-height]
+print('Shape of cropped image:', np.shape(data))
 
 # save the new file data
 fits.writeto('cropped_image.fits', data, overwrite=True)
@@ -61,7 +62,6 @@ hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
 x_hist_fit = np.linspace(3300, 3650, 1000)
 plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
 plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
-print(len(data_flat))
 plt.hist(data_flat, bins=2000, label ='Pixel Counts')
 plt.xlim(3300,3650) #zoom into background (5000 bins used)
 # plt.ylim(0,20)
@@ -74,6 +74,7 @@ background_spread = hist_fit[2]
 
 #%%### MASKING ARRAY ######
 mask_array = np.ones(np.shape(data)) # initially all 1's
+print('shape of initial masked array:', np.shape(mask_array))
 
 # function to remove star like shapes
 def remove_star(x_center, y_center,r, x1_rect, x2_rect, y1_rect, y2_rect):
@@ -93,50 +94,57 @@ def remove_star(x_center, y_center,r, x1_rect, x2_rect, y1_rect, y2_rect):
 
 remove_star(1200, 3000, 200,1210, 1230, 0, -1)
 remove_star(558, 3105, 40, 555, 561, 2980, 3198)
+remove_star(757, 2555, 35, 753, 760, 2484, 2616)
+remove_star(687, 2066, 40, 684, 691, 2003, 2136)
+remove_star(1917, 3540, 25, 1915, 1920, 3487, 3582)
+ 
+# Remove the triangles in the shape
+def remove_triangle(x1, y1, x2, y2, x3, y3, x1_rect, x2_rect, y1_rect, y2_rect):
+    # gradients of each side of the triangle
+    m1 = (x3 - x1) / (y3 - y1)
+    m2 = (x3 - x2) / (y3 - y2)
+    # constants for each straight line
+    c1 = x1 - m1 * y1
+    c2 = x2 - m2 * y2
+    c3 = y1
+    # finding the triangle thing itself
+    for px in range(4172):
+        for py in range (2135):
+            if py > m1*px + c1 and py < m2*px + c2 and px > y1:
+                mask_array[px, py] = 0
+    mask_array[y1_rect:y2_rect, x1_rect:x2_rect] = 0
+    
+remove_triangle(1161, 0, 1275, 0, 1222, 57,0 , 0 , 0 , 0) 
+remove_triangle(1121, 103, 1287, 103, 1227, 171, 803, 1487, 95, 104)
+remove_triangle(1124, 216, 1303, 216, 1220, 274, 887, 1434, 207, 217)
 
+# removing other random points at the bottom
+mask_array[207:210, 810:826] = 0
+mask_array[205:232, 819:822] = 0
+mask_array[114:135, 1424:1431] = 0
 
-# # trying to remove the big bright star
-# x_bleed1 = 3000
-# y_bleed1 = 1200 
-# r_bleed1 = 200
+print('shape of mask array after removed bleeding:', np.shape(mask_array))
+           
+data_no_bleed = mask_array * data
+print('shape of data_no_bleed:', np.shape(data_no_bleed))
 
-# # remove the circle section
-# for px in range(4172):
-#     for py in range(2135):
-#         x_mag = (px - x_bleed1) * (px - x_bleed1)
-#         y_mag = (py - y_bleed1) * (py - y_bleed1)
-#         r = r_bleed1 * r_bleed1
-#         if x_mag + y_mag < r:
-#             mask_array[px, py] = 0
+fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
-# # remove the rectangle section
-# mask_array[:,1210:1220]=0
-            
-data_nobleed = mask_array * data
-fits.writeto('no_bleed_data.fits', data_nobleed, overwrite=True)
+#%%### GET RID OF DATA THAT WE DEEM TO BE BACKGROUND ######
 
-
-
-#%% Maybe come back to this
-background_cut_off = background_count + 3 * background_spread
-
-# removes the brightes points (must be bleeding)
-max_val = np.max(data_flat)
-max_i = np.array(np.where(data >= max_val)) # first row = x values, second row = y values
-x_max_i = max_i[0,:]
-y_max_i = max_i[1,:]
+background_cut_off = background_count + 3 * background_spread # Three sigma above the wanted value
 # remove points below our maximum value
-min_i = np.array(np.where(data <= background_cut_off))
+
+# remove points below our maximum value
+min_i = np.array(np.where(data_no_bleed <= background_cut_off))
 x_min_i = min_i[0,:]
 y_min_i = min_i[1,:]
-
-for k in range(len(x_max_i)):
-        mask_array[x_max_i[k],y_max_i[k]] = 0
 for j in range(len(x_min_i)):
         mask_array[x_min_i[j],y_min_i[j]] = 0
         
-data_bleed = mask_array * data
-plt.imshow(data_bleed, cmap='gray')
+data_final = mask_array * data_no_bleed
+fits.writeto('data_final.fits', data_final, overwrite=True)
+plt.imshow(data_final, cmap='gray')
 plt.colorbar()
 plt.show()
 
