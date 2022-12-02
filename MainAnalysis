@@ -72,62 +72,65 @@ plt.show()
 background_count = hist_fit[1]
 background_spread = hist_fit[2]
 
-#%%### MASKING ARRAY ######
+#%%### IMAGE MASKING ######
 mask_array = np.ones(np.shape(data)) # initially all 1's
 print('shape of initial masked array:', np.shape(mask_array))
 
-# function to remove star like shapes
-def remove_star(x_center, y_center,r, x1_rect, x2_rect, y1_rect, y2_rect):
-    ''' Takes in the dimensions of the shapes you want to remove
-    centers refers to the circle mask, r is the radius of this circle
-    READ OFF THE X AND Y POSITIONS FROM DS9, THIS CODE SHOULD FLIP THEM FOR YOU'''
-    # remove the circular part
-    for px in range(4172):
-        for py in range (2135):
-            x_mag = (px - y_center) * (px - y_center)
-            y_mag = (py - x_center) * (py - x_center)
-            r_sq = r * r
-            if x_mag + y_mag < r_sq:
-                mask_array[px, py] = 0
-    # remove the rectangular part
-    mask_array[y1_rect:y2_rect, x1_rect:x2_rect] = 0
-
-remove_star(1200, 3000, 200,1210, 1230, 0, -1)
-remove_star(558, 3105, 40, 555, 561, 2980, 3198)
-remove_star(757, 2555, 35, 753, 760, 2484, 2616)
-remove_star(687, 2066, 40, 684, 691, 2003, 2136)
-remove_star(1917, 3540, 25, 1915, 1920, 3487, 3582)
- 
-# Remove the triangles in the shape
-def remove_triangle(x1, y1, x2, y2, x3, y3, x1_rect, x2_rect, y1_rect, y2_rect):
+# function to remove circle shape 
+def remove_circle(x_val, y_val, x_center, y_center, r):
+    x_mag = (x_val - y_center) * (x_val - y_center)
+    y_mag = (y_val - x_center) * (y_val - x_center)
+    r_sq = r * r
+    if x_mag + y_mag < r_sq:
+        return True
+# function to remove triangle shape
+def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3):
     # gradients of each side of the triangle
     m1 = (x3 - x1) / (y3 - y1)
     m2 = (x3 - x2) / (y3 - y2)
     # constants for each straight line
     c1 = x1 - m1 * y1
     c2 = x2 - m2 * y2
-    c3 = y1
-    # finding the triangle thing itself
-    for px in range(4172):
-        for py in range (2135):
-            if py > m1*px + c1 and py < m2*px + c2 and px > y1:
-                mask_array[px, py] = 0
-    mask_array[y1_rect:y2_rect, x1_rect:x2_rect] = 0
-    
-remove_triangle(1161, 0, 1275, 0, 1222, 57,0 , 0 , 0 , 0) 
-remove_triangle(1121, 103, 1287, 103, 1227, 171, 803, 1487, 95, 104)
-remove_triangle(1124, 216, 1303, 216, 1220, 274, 887, 1434, 207, 217)
-
-# removing other random points at the bottom
+    if y_val > m1*x_val + c1 and y_val < m2*x_val + c2 and x_val > y1:
+        return True
+# removing every non-rectangular bleeding point 
+for px in range(4172):
+    for py in range(2135):
+        # remove all the stars
+        if remove_circle(px, py, 1200, 3000, 200) == True:
+            mask_array[px, py] = 0
+        elif remove_circle(px, py, 558, 3105, 40) == True:
+            mask_array[px, py] = 0
+        elif remove_circle(px, py, 757, 2555, 35) == True:
+            mask_array[px, py] = 0
+        elif remove_circle(px, py, 687, 2066, 40) == True:
+            mask_array[px, py] = 0
+        elif remove_circle(px, py, 1917, 3540, 25) == True:
+            mask_array[px, py] = 0
+        # remove the triangles at the bottom
+        elif remove_triangle(px, py, 1161, 0, 1275, 0, 1222, 57) == True:
+            mask_array[px, py] = 0
+        elif remove_triangle(px, py, 1121, 103, 1287, 103, 1227, 171) == True:
+            mask_array[px, py] = 0
+        elif remove_triangle(px, py, 1124, 216, 1303, 216, 1220, 274) == True:
+            mask_array[px, py] = 0
+        
+# removing any rectangular points
+# rectangles associated with stars
+mask_array[0:-1, 1210:1230] = 0 
+mask_array[2980:3198, 555:561] = 0
+mask_array[2484:2616, 753:760] = 0
+mask_array[2003:2136, 684:691] = 0
+mask_array[1915:1920, 3487:3582] = 0
+# # rectangles below triangles
+mask_array[95:104, 803:1487] = 0 
+mask_array[207:217, 887:1434] = 0 
+# other random points
 mask_array[207:210, 810:826] = 0
 mask_array[205:232, 819:822] = 0
 mask_array[114:135, 1424:1431] = 0
-
-print('shape of mask array after removed bleeding:', np.shape(mask_array))
-           
+    
 data_no_bleed = mask_array * data
-print('shape of data_no_bleed:', np.shape(data_no_bleed))
-
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
 #%%### GET RID OF DATA THAT WE DEEM TO BE BACKGROUND ######
@@ -143,7 +146,7 @@ for j in range(len(x_min_i)):
         mask_array[x_min_i[j],y_min_i[j]] = 0
         
 data_final = mask_array * data_no_bleed
-fits.writeto('data_final.fits', data_final, overwrite=True)
+fits.writeto('data_no_background.fits', data_final, overwrite=True)
 plt.imshow(data_final, cmap='gray')
 plt.colorbar()
 plt.show()
