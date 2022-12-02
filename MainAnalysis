@@ -41,7 +41,8 @@ for i in range(len(data[:][100])):
 #data = data[width:4610-width][height:2569-height]
 data = data[width:4610-width,height:2569-height]
 
-print(np.shape(data))
+# save the new file data
+fits.writeto('cropped_image.fits', data, overwrite=True)
 
 #### SEE THE IMAGE ######
 plt.imshow(data, cmap='gray')
@@ -74,11 +75,54 @@ background_spread = hist_fit[2]
 #%%### MASKING ARRAY ######
 mask_array = np.ones(np.shape(data)) # initially all 1's
 
+# function to remove star like shapes
+def remove_star(x_center, y_center,r, x1_rect, x2_rect, y1_rect, y2_rect):
+    ''' Takes in the dimensions of the shapes you want to remove
+    centers refers to the circle mask, r is the radius of this circle
+    READ OFF THE X AND Y POSITIONS FROM DS9, THIS CODE SHOULD FLIP THEM FOR YOU'''
+    # remove the circular part
+    for px in range(4172):
+        for py in range (2135):
+            x_mag = (px - y_center) * (px - y_center)
+            y_mag = (py - x_center) * (py - x_center)
+            r_sq = r * r
+            if x_mag + y_mag < r_sq:
+                mask_array[px, py] = 0
+    # remove the rectangular part
+    mask_array[y1_rect:y2_rect, x1_rect:x2_rect] = 0
+
+remove_star(1200, 3000, 200,1210, 1230, 0, -1)
+remove_star(558, 3105, 40, 555, 561, 2980, 3198)
+
+
+# # trying to remove the big bright star
+# x_bleed1 = 3000
+# y_bleed1 = 1200 
+# r_bleed1 = 200
+
+# # remove the circle section
+# for px in range(4172):
+#     for py in range(2135):
+#         x_mag = (px - x_bleed1) * (px - x_bleed1)
+#         y_mag = (py - y_bleed1) * (py - y_bleed1)
+#         r = r_bleed1 * r_bleed1
+#         if x_mag + y_mag < r:
+#             mask_array[px, py] = 0
+
+# # remove the rectangle section
+# mask_array[:,1210:1220]=0
+            
+data_nobleed = mask_array * data
+fits.writeto('no_bleed_data.fits', data_nobleed, overwrite=True)
+
+
+
+#%% Maybe come back to this
 background_cut_off = background_count + 3 * background_spread
 
 # removes the brightes points (must be bleeding)
 max_val = np.max(data_flat)
-max_i = np.array(np.where(data >= 5.4e4)) # first row = x values, second row = y values
+max_i = np.array(np.where(data >= max_val)) # first row = x values, second row = y values
 x_max_i = max_i[0,:]
 y_max_i = max_i[1,:]
 # remove points below our maximum value
