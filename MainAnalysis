@@ -4,7 +4,7 @@ from astropy.io import fits
 import pickle
 from scipy.optimize import curve_fit
 
-#%% Don't run this file all the time
+#%% Don't run this cell all the time
 # Check the contents of the FITS file
 hdulist = fits.open('A1_mosaic.fits')
 with open('hdulist.pickle', 'wb') as f:
