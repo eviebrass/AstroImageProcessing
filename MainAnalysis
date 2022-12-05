@@ -13,9 +13,6 @@ with open('hdulist.pickle', 'wb') as f:
 with open('hdulist.pickle', 'rb') as f:
     data = pickle.load(f)
 
-print(np.shape(data))
-print(type(data))
-
 #### SEE THE IMAGE ######
 plt.imshow(data, cmap='gray')
 plt.colorbar()
@@ -40,7 +37,6 @@ for i in range(len(data[:][100])):
 #cropping picture 
 #data = data[width:4610-width][height:2569-height]
 data = data[width:4610-width,height:2569-height]
-print('Shape of cropped image:', np.shape(data))
 
 # save the new file data
 fits.writeto('cropped_image.fits', data, overwrite=True)
@@ -74,7 +70,6 @@ background_spread = hist_fit[2]
 
 #%%### IMAGE MASKING ######
 mask_array = np.ones(np.shape(data)) # initially all 1's
-print('shape of initial masked array:', np.shape(mask_array))
 
 # function to remove circle shape 
 def remove_circle(x_val, y_val, x_center, y_center, r):
@@ -121,7 +116,7 @@ mask_array[0:-1, 1210:1230] = 0
 mask_array[2980:3198, 555:561] = 0
 mask_array[2484:2616, 753:760] = 0
 mask_array[2003:2136, 684:691] = 0
-mask_array[1915:1920, 3487:3582] = 0
+mask_array[3487:3582, 1915:1925] = 0
 # # rectangles below triangles
 mask_array[95:104, 803:1487] = 0 
 mask_array[207:217, 887:1434] = 0 
@@ -132,6 +127,50 @@ mask_array[114:135, 1424:1431] = 0
     
 data_no_bleed = mask_array * data
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
+
+print('removing bleeds is complete')
+
+#%%### DETECTING SOURCES ######
+
+background_edge = background_count + 3 * background_spread # Three sigma above the wanted value
+
+def find_star(data_current):
+    max_val = np.max(data_current)
+    print(f'{max_val=}')
+    locx, locy = np.where(data_current == max_val)
+    locx = int(locx)
+    locy = int(locy)
+    r=12
+    # find the radius of the detected star
+    data_scan = data_current[locx:, locy]
+    for x in range(len(data_scan)): # pick out the points along y to find radius
+        if data_scan[x] < background_edge:
+            print('background triggered')
+            r = x
+            break
+    return locx, locy, r, max_val
+
+data_count = data_no_bleed # data using to count stars
+mask_count = mask_array # array we will update to count stars
+counter = 0
+
+for i in range(0, 50): # testing by fixing the number of sources we want to count
+    x_current, y_current, r_current, max_val_current = find_star(data_count)
+    if max_val_current > background_edge and r_current > 3: # not counting really small things
+        counter += 1 # counting the number of detected objects
+        print(i)
+        print(f'{x_current=}, {y_current=}, {r_current=}')
+        for px in range(4172):
+            for py in range(2135):
+                if remove_circle(px, py, y_current, x_current, r_current) == True: # make sure that you flip the x and y in this case
+                    mask_count[px, py] = 0
+        data_count = mask_count * data_count
+
+data_count = mask_count * data_count
+
+fits.writeto('removing_objects.fits', data_count, overwrite=True)
+
+print('Source Counting is Finished')
 
 #%%### GET RID OF DATA THAT WE DEEM TO BE BACKGROUND ######
 
