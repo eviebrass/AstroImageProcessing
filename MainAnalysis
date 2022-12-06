@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Nov 25 10:20:04 2022
+
+@author: eviebrass
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
@@ -150,16 +157,19 @@ def find_source(data_current):
     locx, locy = np.where(data_current == max_val)
     locx = int(locx)
     locy = int(locy)
+    r = 12
     # take an area for the background calculations
     l = 50 # length to go either side of the source
-    data_flat_current = np.ravel(data_current[locx-l:locx+l, locy-l:locy+l]) # picking out a square around the source
-    hist_y, hist_edges = np.histogram(data_flat_current, bins=2000)  
+    data_flat = np.ravel(data_current[locx-l:locx+l, locy-l:locy+l]) # picking out a square around the source
+    hist_y, hist_edges = np.histogram(data_flat, bins=2000)  
     hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
     hist_error = np.sqrt(hist_y)
     hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
+    x_hist_fit = np.linspace(3300, 3650, 1000)
     plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
     plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
     plt.hist(data_flat, bins=2000, label ='Pixel Counts')
+    plt.xlim(3300,3650)
     plt.legend()
     plt.show()
     background = hist_fit[0]
@@ -180,7 +190,7 @@ mask_count = mask_array # array we will update to count stars
 counter = 0
 xlocs = ['object x centers']
 ylocs = ['object y centers']
-for i in range(0, 5): # testing by fixing the number of sources we want to count
+for i in range(0, 2): # testing by fixing the number of sources we want to count
     x_current, y_current, r_current, max_val_current = find_source(data_count)
     if max_val_current > background_edge and r_current > 3: # not counting really small things
         xlocs.append(x_current)
