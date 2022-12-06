@@ -37,12 +37,23 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
     return hist_fit, hist_cov
 
 ###### IMAGE MASKING ######
-def remove_circle(x_val, y_val, x_center, y_center, r, mask_array):
+def remove_circle(x_val, y_val, x_center, y_center, r, mask_array,photometery=False,pixl=False):
     x_mag = (x_val - y_center) * (x_val - y_center)
     y_mag = (y_val - x_center) * (y_val - x_center)
     r_sq = r * r
+    
+    #counter to determine the number of pixels associated with source 
+    pixl_object = 0 
+    
     if x_mag + y_mag < r_sq:
+        pixl_object += 1 #making the counter for number of pixels
         mask_array[x_val, y_val] = 0
+        #used to determine flux
+        if photometery == True:
+            return True
+    #obtaining total number of pixl for object
+    if pixl == True: 
+        return pixl_object
 
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     # gradients of each side of the triangle
