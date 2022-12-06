@@ -103,40 +103,6 @@ print('removing bleeds is complete')
 with open('data_no_bleed.pickle', 'rb') as f:
     data_no_bleed = pickle.load(f)
 
-background_edge = background_count + 3 * background_spread # Three sigma above the wanted value
-
-def find_source(data_current):
-    max_val = np.max(data_current)
-    print(f'{max_val=}')
-    locx, locy = np.where(data_current == max_val)
-    locx = int(locx)
-    locy = int(locy)
-    r = 12
-    # take an area for the background calculations
-    l = 50 # length to go either side of the source
-    data_flat = np.ravel(data_current[locx-l:locx+l, locy-l:locy+l]) # picking out a square around the source
-    hist_y, hist_edges = np.histogram(data_flat, bins=2000)  
-    hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
-    hist_error = np.sqrt(hist_y)
-    hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
-    x_hist_fit = np.linspace(3300, 3650, 1000)
-    plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
-    plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
-    plt.hist(data_flat, bins=2000, label ='Pixel Counts')
-    plt.xlim(3300,3650)
-    plt.legend()
-    plt.show()
-    background = hist_fit[0]
-    sigma = hist_fit[1]
-    edge = background + 3 * sigma # anything below this is defined as background
-    # find the radius of the detected star
-    data_scan = data_current[locx:locx+100, locy] # limit the region that we are searching
-    for x in range(len(data_scan)): # pick out the points along y to find radius
-        if data_scan[x] < edge:
-            r = x
-            break
-    return locx, locy, r, max_val
-
 data_count = data_no_bleed # data using to count stars
 mask_count = mask_array # array we will update to count stars
 
@@ -145,20 +111,17 @@ counter = 0
 xlocs = ['object x centers']
 ylocs = ['object y centers']
 for i in range(0, 2): # testing by fixing the number of sources we want to count
-    x_current, y_current, r_current, max_val_current = find_source(data_count)
-    if max_val_current > background_edge and r_current > 3: # not counting really small things
-        xlocs.append(x_current)
-        ylocs.append(y_current)
+    x, y, r, max_val, local_edge = func.find_source(data_count, plot=True)
+    if max_val > local_edge and r > 3: # not counting really small things
+        xlocs.append(x)
+        ylocs.append(y)
         counter += 1 # counting the number of detected objects
         # print(i)
         # print(f'{x_current=}, {y_current=}, {r_current=}')
         for px in range(4172):
             for py in range(2135):
-                if remove_circle(px, py, y_current, x_current, r_current) == True: # make sure that you flip the x and y in this case
-                    mask_count[px, py] = 0
+                func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
         data_count = mask_count * data_count
-
-data_count = mask_count * data_count
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
@@ -167,36 +130,4 @@ fits.writeto('removing_objects.fits', data_count, overwrite=True)
 # trial saving a catalogue
 
 print('Source Counting is Finished')
-
-#%%### GET RID OF DATA THAT WE DEEM TO BE BACKGROUND ######
-
-background_cut_off = background_count + 3 * background_spread # Three sigma above the wanted value
-# remove points below our maximum value
-
-# remove points below our maximum value
-min_i = np.array(np.where(data_no_bleed <= background_cut_off))
-x_min_i = min_i[0,:]
-y_min_i = min_i[1,:]
-for j in range(len(x_min_i)):
-        mask_array[x_min_i[j],y_min_i[j]] = 0
-        
-data_final = mask_array * data_no_bleed
-fits.writeto('data_no_background.fits', data_final, overwrite=True)
-plt.imshow(data_final, cmap='gray')
-plt.colorbar()
-plt.show()
-
-#%% PRINTING THE USEFUL VALUES
-print(f'{background_count= :.5f}')
-print(f'{background_spread= :.5f}')
-
-
-
-
-
-
-
-
-
-
 
