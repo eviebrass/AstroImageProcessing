@@ -58,7 +58,7 @@ def remove_rect(x1, x2, y1, y2, mask_array):
     mask_array[y1:y2, x1:x2] = 0
     
 ###### DETECTING SOURCES ######
-def find_source(data, nbins = 4000):
+def find_source(data, nbins = 4000, plot=False):
     max_val = np.max(data)
     locx, locy = np.where(data == max_val)
     locx = int(locx)
@@ -66,38 +66,18 @@ def find_source(data, nbins = 4000):
     r = 0 
     # take an area for the background calculations
     l = 50 # length to go either side of the source
-    data = data[locx-l:locx+l, locy-l:locy+l] # picking out a square around the source
-    background_fit, background_cov = histogram_fit(data, nbins, title, fit_func)
-    
-    data_flat = np.ravel(data_current[locx-l:locx+l, locy-l:locy+l]) # picking out a square around the source
-    hist_y, hist_edges = np.histogram(data_flat, bins=2000)  
-    hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
-    hist_error = np.sqrt(hist_y)
-    hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
-    x_hist_fit = np.linspace(3300, 3650, 1000)
-    plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
-    plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
-    plt.hist(data_flat, bins=2000, label ='Pixel Counts')
-    plt.xlim(3300,3650)
-    plt.legend()
-    plt.show()
-    background = hist_fit[0]
-    sigma = hist_fit[1]
+    data_local = data[locx-l:locx+l, locy-l:locy+l] # picking out a square around the source
+    background_fit, background_cov = histogram_fit(data_local, nbins, plot=plot)
+    background = background_fit[0]
+    sigma = background_fit[1]
     edge = background + 3 * sigma # anything below this is defined as background
     # find the radius of the detected star
-    data_scan = data_current[locx:locx+100, locy] # limit the region that we are searching
+    data_scan = data[locx:locx+100, locy] # limit the region that we are searching
     for x in range(len(data_scan)): # pick out the points along y to find radius
         if data_scan[x] < edge:
             r = x
             break
-    return locx, locy, r, max_val
-    
-
-
-
-
-
-
+    return locx, locy, r, max_val, edge
 
 
 
