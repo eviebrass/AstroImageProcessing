@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import pickle
 from scipy.optimize import curve_fit
+import CatalogueSaving as s
+import pandas as pd
 
-#%% Don't run this cell all the time
+#%% Don't run this file all the time
 # Check the contents of the FITS file
 hdulist = fits.open('A1_mosaic.fits')
 with open('hdulist.pickle', 'wb') as f:
@@ -45,7 +47,8 @@ fits.writeto('cropped_image.fits', data, overwrite=True)
 plt.imshow(data, cmap='gray')
 plt.colorbar()
 plt.show()
-#%%### PLOTTING A HISTOGRAM OF THE PIXEL COUNTS ######
+
+###### PLOTTING A HISTOGRAM OF THE PIXEL COUNTS ######
 data_flat = np.ravel(data) # change into one long list of the data
 # find the histogram points
 hist_y, hist_edges = np.histogram(data_flat, bins=2000)  
@@ -54,6 +57,7 @@ hist_error = np.sqrt(hist_y)
 # curve_fit a Gaussian
 def gaussian(data, A, mean, sigma):
     return A*np.exp(-1*(data - mean)**2 / (2*sigma*sigma))
+
 hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
 x_hist_fit = np.linspace(3300, 3650, 1000)
 plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
@@ -68,7 +72,7 @@ plt.show()
 background_count = hist_fit[1]
 background_spread = hist_fit[2]
 
-#%%### IMAGE MASKING ######
+###### IMAGE MASKING ######
 mask_array = np.ones(np.shape(data)) # initially all 1's
 
 # function to remove circle shape 
@@ -128,38 +132,62 @@ mask_array[114:135, 1424:1431] = 0
 data_no_bleed = mask_array * data
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
+with open('data_no_bleed.pickle', 'wb') as f:
+    pickle.dump(data_no_bleed, f)
+
 print('removing bleeds is complete')
 
 #%%### DETECTING SOURCES ######
 
+with open('data_no_bleed.pickle', 'rb') as f:
+    data_no_bleed = pickle.load(f)
+
 background_edge = background_count + 3 * background_spread # Three sigma above the wanted value
 
-def find_star(data_current):
+def find_source(data_current):
     max_val = np.max(data_current)
     print(f'{max_val=}')
     locx, locy = np.where(data_current == max_val)
     locx = int(locx)
     locy = int(locy)
-    r=12
+    # take an area for the background calculations
+    l = 50 # length to go either side of the source
+    data_flat_current = np.ravel(data_current[locx-l:locx+l, locy-l:locy+l]) # picking out a square around the source
+    hist_y, hist_edges = np.histogram(data_flat_current, bins=2000)  
+    hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
+    hist_error = np.sqrt(hist_y)
+    hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0=[7e6,3420,18])
+    plt.plot(x_hist_fit, gaussian(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
+    plt.errorbar(hist_centers, hist_y, yerr= hist_error,color='red', fmt='x')
+    plt.hist(data_flat, bins=2000, label ='Pixel Counts')
+    plt.legend()
+    plt.show()
+    background = hist_fit[0]
+    sigma = hist_fit[1]
+    edge = background + 3 * sigma # anything below this is defined as background
     # find the radius of the detected star
-    data_scan = data_current[locx:, locy]
+    data_scan = data_current[locx:locx+100, locy] # limit the region that we are searching
     for x in range(len(data_scan)): # pick out the points along y to find radius
-        if data_scan[x] < background_edge:
-            print('background triggered')
+        if data_scan[x] < edge:
             r = x
             break
     return locx, locy, r, max_val
 
 data_count = data_no_bleed # data using to count stars
 mask_count = mask_array # array we will update to count stars
-counter = 0
 
-for i in range(0, 50): # testing by fixing the number of sources we want to count
-    x_current, y_current, r_current, max_val_current = find_star(data_count)
+# information we are getting from the searching
+counter = 0
+xlocs = ['object x centers']
+ylocs = ['object y centers']
+for i in range(0, 5): # testing by fixing the number of sources we want to count
+    x_current, y_current, r_current, max_val_current = find_source(data_count)
     if max_val_current > background_edge and r_current > 3: # not counting really small things
+        xlocs.append(x_current)
+        ylocs.append(y_current)
         counter += 1 # counting the number of detected objects
-        print(i)
-        print(f'{x_current=}, {y_current=}, {r_current=}')
+        # print(i)
+        # print(f'{x_current=}, {y_current=}, {r_current=}')
         for px in range(4172):
             for py in range(2135):
                 if remove_circle(px, py, y_current, x_current, r_current) == True: # make sure that you flip the x and y in this case
@@ -169,6 +197,10 @@ for i in range(0, 50): # testing by fixing the number of sources we want to coun
 data_count = mask_count * data_count
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
+
+# pd.dataFrame()
+
+# trial saving a catalogue
 
 print('Source Counting is Finished')
 
