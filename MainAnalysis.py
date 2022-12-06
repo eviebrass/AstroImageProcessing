@@ -77,7 +77,7 @@ for px in range(4172):
 
 # removing any rectangular points
 # rectangles associated with stars
-mask_array[0:-1, 1210:1230] = 0 
+mask_array[:, 1210:1230] = 0 
 mask_array[2980:3198, 555:561] = 0
 mask_array[2484:2616, 753:760] = 0
 mask_array[2003:2136, 684:691] = 0
@@ -110,18 +110,49 @@ mask_count = mask_array # array we will update to count stars
 counter = 0
 xlocs = ['object x centers']
 ylocs = ['object y centers']
+total_flux =['total flux for aperture']
+local_back =['Finding local background']
+
 for i in range(0, 2): # testing by fixing the number of sources we want to count
     x, y, r, max_val, local_edge = func.find_source(data_count, plot=True)
+    #obtaining number of pixels for each detected object using a counter 
+    counter += 1
     if max_val > local_edge and r > 3: # not counting really small things
         xlocs.append(x)
         ylocs.append(y)
-        counter += 1 # counting the number of detected objects
         # print(i)
         # print(f'{x_current=}, {y_current=}, {r_current=}')
+        
+        counter += 1 # counting the number of detected objects
+        total_flux_each = [] #total flux for given aperture
+        back_flux_each = [] #total flux for background 
+        
         for px in range(4172):
             for py in range(2135):
+                #determing total flux for set aperture 
+                  if func.remove_circle(px, py, y_current, x_current, r_current+10,photmetery=1) == True:
+                    total_flux_each.append(data_count[px,py])
+                #determing the number of pixel for object 
+                pixel_source = func.remove_circle(px, py, y_current, x_current, r_current+10,pixl=1)
+                #masking the object 
                 func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
         data_count = mask_count * data_count
+        
+        #finding total flux for set aperture
+        total_flux.append(np.sum(total_flux_each))
+        
+        #determining the background flux 
+        for px in range(4172):
+            for py in range(2135):
+                if remove_circle(px, py, y_current, x_current, r_current+10, photometery=1) == True:
+                    back_flux_each.append(data_count[px,py]) #adding flux for each background to list
+                    
+        #determing background count per pixel 
+        back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
+        #determing the local background by multiplying flux by pixels in aperture 
+        local_back_each = back_count_pixl * pixl_source 
+        local_back.append(local_back_each)
+
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
@@ -130,4 +161,20 @@ fits.writeto('removing_objects.fits', data_count, overwrite=True)
 # trial saving a catalogue
 
 print('Source Counting is Finished')
+
+#determing the soruce flux 
+source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
+
+# =============================================================================
+# 5.5 Calibrating the fluxes. 
+# Converting instrumental counts to source magnitude
+# =============================================================================
+
+#converting counts into instrumental magnitude 
+inst_mag = -2.5*math.log10(source_flux)
+
+#converting instrumental arguments into calibrated magnitudes 
+mag = point_0 + inst_mag
+#uncertainty in magnitude 
+plt.hist(mag,bins=10)
 
