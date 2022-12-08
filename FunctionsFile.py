@@ -37,23 +37,29 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
     return hist_fit, hist_cov
 
 ###### IMAGE MASKING ######
-def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometery=False, pixl=False):
-    x_mag = (x_val - y_center) * (x_val - y_center)
-    y_mag = (y_val - x_center) * (y_val - x_center)
+def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
+    l = r + 49
+    reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:x_center+l] # limiting the area to loop through
+    y = x_val + x_center - l # the pixel number in the context of image
+    x = y_val + y_center - l 
+    x_mag = (x - y_center) * (x - y_center)
+    y_mag = (y - x_center) * (y - x_center)
     r_sq = r * r
     
     # counter to determine the number of pixels associated with source 
-    pixl_object = 0 
+    pixl_count = 0 
     
     if x_mag + y_mag < r_sq:
-        pixl_object += 1 # making the counter for number of pixels
-        mask_array[x_val, y_val] = 0
-        #used to determine flux
-        if photometery == True:
+        pixl_count += 1 
+        if photometry == 0:
+            reduced_mask[x_val, y_val] = 0
+        if photometry == 1:
             return True
-    # obtaining total number of pixl for object
-    if pixl == True: 
-        return pixl_object
+    mask_array[y_center-l:y_center+l, x_center-l:x_center+l] = reduced_mask
+    
+    if pixl == 1:
+        return pixl_count
+        
 
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     # gradients of each side of the triangle
@@ -79,16 +85,27 @@ def find_source(data, nbins = 4000, plot=False):
     l = 50 # length to go either side of the source
     data_local = data[locx-l:locx+l, locy-l:locy+l] # picking out a square around the source
     background_fit, background_cov = histogram_fit(data_local, nbins, plot=plot)
-    background = background_fit[0]
-    sigma = background_fit[1]
+    background = background_fit[1]
+    sigma = background_fit[2]
     edge = background + 3 * sigma # anything below this is defined as background
+    # print(f'{background=}')
+    # print(f'{sigma=}')
+    # print(f'{edge=}')
     # find the radius of the detected star
     data_scan = data[locx:locx+100, locy] # limit the region that we are searching
+    # data_scan= data[locx, locy:locy+100]
     for x in range(len(data_scan)): # pick out the points along y to find radius
         if data_scan[x] < edge:
             r = x
             break
     return locx, locy, r, max_val, edge
+    
+
+
+
+
+
+
 
 
 

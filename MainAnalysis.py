@@ -12,6 +12,10 @@ import pickle
 from scipy.optimize import curve_fit
 import CatalogueSaving as s
 import FunctionsFile as func
+import math
+
+point_0 = 2.53e1
+point_0_un = 2e-2
 
 #%% Don't run this file all the time
 # Check the contents of the FITS file
@@ -60,28 +64,31 @@ global_background_fit, global_background_cov = func.histogram_fit(
 
 #%% Only run this cell if changing the masked parts
 ###### IMAGE MASKING ######
-mask_array = np.ones(np.shape(data)) # initially all 1's
+mask_array = np.ones(np.shape(data)) # initially all 1
 
-for px in range(4172):
-    for py in range(2135):
+# remove circular parts
+for px in range(600):
+    for py in range(600):
         # remove circle parts
-        func.remove_circle(px, py, 1200, 3000, 200, mask_array)
-        func.remove_circle(px, py, 558, 3105, 40, mask_array)
-        func.remove_circle(px, py, 757, 2555, 35, mask_array)
-        func.remove_circle(px, py, 687, 2066, 40, mask_array)
-        func.remove_circle(px, py, 1917, 3540, 25, mask_array)
-        # remove triangular parts
+        func.remove_circle(px, py, 1200, 3000, 250, mask_array)
+        func.remove_circle(px, py, 558, 3105, 45, mask_array)
+        func.remove_circle(px, py, 757, 2555, 40, mask_array)
+        func.remove_circle(px, py, 687, 2066, 45, mask_array)
+        func.remove_circle(px, py, 1917, 3540, 30, mask_array)
+# remove triangular parts
+for px in range(300):
+    for py in range(1100, 1350):
         func.remove_triangle(px, py, 1161, 0, 1275, 0, 1222, 57, mask_array)
         func.remove_triangle(px, py, 1121, 103, 1287, 103, 1227, 171, mask_array)
         func.remove_triangle(px, py, 1124, 216, 1303, 216, 1220, 274, mask_array)
 
 # removing any rectangular points
 # rectangles associated with stars
-mask_array[:, 1210:1230] = 0 
-mask_array[2980:3198, 555:561] = 0
+mask_array[:, 1205:1240] = 0 
+mask_array[2980:3198, 555:564] = 0
 mask_array[2484:2616, 753:760] = 0
 mask_array[2003:2136, 684:691] = 0
-mask_array[3487:3582, 1915:1925] = 0
+mask_array[3487:3582, 1913:1925] = 0
 # # rectangles below triangles
 mask_array[95:104, 803:1487] = 0 
 mask_array[207:217, 887:1434] = 0 
@@ -93,15 +100,9 @@ mask_array[114:135, 1424:1431] = 0
 data_no_bleed = mask_array * data
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
-with open('data_no_bleed.pickle', 'wb') as f:
-    pickle.dump(data_no_bleed, f)
-
 print('removing bleeds is complete')
 
-#%%### DETECTING SOURCES ######
-
-with open('data_no_bleed.pickle', 'rb') as f:
-    data_no_bleed = pickle.load(f)
+###### DETECTING SOURCES ######
 
 data_count = data_no_bleed # data using to count stars
 mask_count = mask_array # array we will update to count stars
@@ -110,55 +111,60 @@ mask_count = mask_array # array we will update to count stars
 counter = 0
 xlocs = ['object x centers']
 ylocs = ['object y centers']
+rs = []
+
 total_flux =['total flux for aperture']
 local_back =['Finding local background']
-
-for i in range(0, 2): # testing by fixing the number of sources we want to count
-    x, y, r, max_val, local_edge = func.find_source(data_count, plot=True)
-    #obtaining number of pixels for each detected object using a counter 
-    counter += 1
-    if max_val > local_edge and r > 3: # not counting really small things
+for i in range(0, 10): # testing by fixing the number of sources we want to count
+    print(f'{i=}')
+    x, y, r, max_val, local_edge = func.find_source(data_count,nbins=4000, plot=False)
+    print(f'{x=}, {y=}, {r=}, {max_val=}, {local_edge=}')
+    if max_val > local_edge: # not counting things one pixel big
+        if r <= 1:
+            mask_count[x,y] = 0 # remove 1 random bright pixel 
+            continue
+        
         xlocs.append(x)
         ylocs.append(y)
-        # print(i)
-        # print(f'{x_current=}, {y_current=}, {r_current=}')
-        
+        rs.append(r)
         counter += 1 # counting the number of detected objects
+        print(f'{counter=}')
+        
         total_flux_each = [] #total flux for given aperture
         back_flux_each = [] #total flux for background 
         
-        for px in range(4172):
-            for py in range(2135):
-                #determing total flux for set aperture 
-                  if func.remove_circle(px, py, y_current, x_current, r_current+10,photmetery=1) == True:
+        for px in range(600):
+            for py in range(600):
+                # determining total flux for fixed aperture
+                if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
                     total_flux_each.append(data_count[px,py])
                 #determing the number of pixel for object 
-                pixel_source = func.remove_circle(px, py, y_current, x_current, r_current+10,pixl=1)
+                pixl_source = func.remove_circle(px, py, y, x, r+10, mask_count, pixl=1)
                 #masking the object 
                 func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
+        
         data_count = mask_count * data_count
         
-        #finding total flux for set aperture
-        total_flux.append(np.sum(total_flux_each))
-        
-        #determining the background flux 
-        for px in range(4172):
-            for py in range(2135):
-                if remove_circle(px, py, y_current, x_current, r_current+10, photometery=1) == True:
+        for px in range(600):
+            for py in range(600):
+                if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
                     back_flux_each.append(data_count[px,py]) #adding flux for each background to list
-                    
-        #determing background count per pixel 
-        back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
-        #determing the local background by multiplying flux by pixels in aperture 
-        local_back_each = back_count_pixl * pixl_source 
-        local_back.append(local_back_each)
-
+    
+    elif max_val < global_background_fit[1]:
+        break # don't want things fainter than background
+    elif max_val < local_edge:
+        print('too faint')
+    
+    #finding total flux for set aperture
+    total_flux.append(np.sum(total_flux_each))
+    
+    #determing background count per pixel 
+    back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
+    #determing the local background by multiplying flux by pixels in aperture 
+    local_back_each = back_count_pixl * pixl_source 
+    local_back.append(local_back_each)
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
-
-# pd.dataFrame()
-
-# trial saving a catalogue
 
 print('Source Counting is Finished')
 
@@ -171,10 +177,23 @@ source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
 # =============================================================================
 
 #converting counts into instrumental magnitude 
-inst_mag = -2.5*math.log10(source_flux)
+inst_mag = -2.5*np.log10(source_flux)
 
 #converting instrumental arguments into calibrated magnitudes 
 mag = point_0 + inst_mag
 #uncertainty in magnitude 
 plt.hist(mag,bins=10)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
