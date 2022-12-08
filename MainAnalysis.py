@@ -62,7 +62,7 @@ global_background_fit, global_background_cov = func.histogram_fit(
     fit_func=func.gaussian, 
     plot=True)
 
-#%% Only run this cell if changing the masked parts
+#%%
 ###### IMAGE MASKING ######
 mask_array = np.ones(np.shape(data)) # initially all 1
 
@@ -78,7 +78,7 @@ for px in range(600):
 # remove triangular parts
 for px in range(300):
     for py in range(1100, 1350):
-        func.remove_triangle(px, py, 1161, 0, 1275, 0, 1222, 57, mask_array)
+        func.remove_triangle(px, py, 1161, -1, 1275, -1, 1222, 57, mask_array)
         func.remove_triangle(px, py, 1121, 103, 1287, 103, 1227, 171, mask_array)
         func.remove_triangle(px, py, 1124, 216, 1303, 216, 1220, 274, mask_array)
 
@@ -115,26 +115,28 @@ rs = []
 
 total_flux =['total flux for aperture']
 local_back =['Finding local background']
-for i in range(0, 10): # testing by fixing the number of sources we want to count
+for i in range(0, 500): # testing by fixing the number of sources we want to count
     print(f'{i=}')
     x, y, r, max_val, local_edge = func.find_source(data_count,nbins=4000, plot=False)
-    print(f'{x=}, {y=}, {r=}, {max_val=}, {local_edge=}')
+    # print(f'{x=}, {y=}, {r=}, {max_val=}, {local_edge=}')
     if max_val > local_edge: # not counting things one pixel big
         if r <= 1:
-            mask_count[x,y] = 0 # remove 1 random bright pixel 
+            mask_count[x,y] = 0 # remove 1 random bright pixel
+            data_count = mask_count * data_count
+            # print('found small object')
             continue
         
         xlocs.append(x)
         ylocs.append(y)
         rs.append(r)
         counter += 1 # counting the number of detected objects
-        print(f'{counter=}')
+        # print(f'{counter=}')
         
         total_flux_each = [] #total flux for given aperture
         back_flux_each = [] #total flux for background 
         
-        for px in range(600):
-            for py in range(600):
+        for px in range(500):
+            for py in range(500):
                 # determining total flux for fixed aperture
                 if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
                     total_flux_each.append(data_count[px,py])
@@ -143,7 +145,7 @@ for i in range(0, 10): # testing by fixing the number of sources we want to coun
                 #masking the object 
                 func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
         
-        data_count = mask_count * data_count
+        data_count *= mask_count
         
         for px in range(600):
             for py in range(600):

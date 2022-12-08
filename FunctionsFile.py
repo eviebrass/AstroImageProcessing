@@ -38,27 +38,61 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
 
 ###### IMAGE MASKING ######
 def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
-    l = r + 49
-    reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:x_center+l] # limiting the area to loop through
+    l = r + 10
     y = x_val + x_center - l # the pixel number in the context of image
     x = y_val + y_center - l 
     x_mag = (x - y_center) * (x - y_center)
     y_mag = (y - x_center) * (y - x_center)
     r_sq = r * r
+    edge_case = 0 # if at an edge then this changes to 1
     
     # counter to determine the number of pixels associated with source 
     pixl_count = 0 
     
-    if x_mag + y_mag < r_sq:
-        pixl_count += 1 
+    if pixl == 1:
+        return pixl_count
+    ### dealing with sources close to the edges
+    # set the mask array to not go past the edges
+    if y_center+l>4172:
+        reduced_mask = mask_array[y_center:4172, x_center-l:x_center+l]
+        edge_case = 1
+        # print('HIT RIGHT BOUNDARY')
+    elif x_center+l>2135:
+        reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:2135]
+        edge_case = 2
+        # print('HIT TOP BOUNDARY')
+    elif y_center-l<0:
+        reduced_mask = mask_array[0:y_center+l, x_center-l:x_center+l]
+        edge_case = 3
+        # print('HIT LEFT BOUNDARY')
+    elif x_center-l<0:
+        reduced_mask = mask_array[y_center-l:y_center+l, 0:x_center+l]
+        edge_case = 4
+        # print('HIT BOTTOM BOUNDARY')
+    else:
+        reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:x_center+l]
+    
+    xmax = np.shape(reduced_mask)[0] # dont want to go longer than the reduced mass size
+    ymax = np.shape(reduced_mask)[1]
+    
+    if x_mag + y_mag < r_sq and x_val < xmax and y_val < ymax:
+        # if not doing photometry then mask section
         if photometry == 0:
             reduced_mask[x_val, y_val] = 0
         if photometry == 1:
             return True
-    mask_array[y_center-l:y_center+l, x_center-l:x_center+l] = reduced_mask
     
-    if pixl == 1:
-        return pixl_count
+    # updating the mask array
+    if edge_case == 0:
+        mask_array[y_center-l:y_center+l, x_center-l:x_center+l] = reduced_mask
+    elif edge_case == 1:
+        mask_array[y_center:4172, x_center-l:x_center+l] = reduced_mask
+    elif edge_case == 2:
+        mask_array[y_center-l:y_center+l, x_center-l:2135] = reduced_mask
+    elif edge_case == 3:
+        mask_array[0:y_center+l, x_center-l:x_center+l] = reduced_mask
+    elif edge_case == 4:
+        mask_array[y_center-l:y_center+l, 0:x_center+l] = reduced_mask
         
 
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
@@ -78,6 +112,8 @@ def remove_rect(x1, x2, y1, y2, mask_array):
 def find_source(data, nbins = 4000, plot=False):
     max_val = np.max(data)
     locx, locy = np.where(data == max_val)
+    print(f'{locx=}')
+    print(f'{locy=}')
     locx = int(locx)
     locy = int(locy)
     r = 0 
@@ -88,9 +124,6 @@ def find_source(data, nbins = 4000, plot=False):
     background = background_fit[1]
     sigma = background_fit[2]
     edge = background + 3 * sigma # anything below this is defined as background
-    # print(f'{background=}')
-    # print(f'{sigma=}')
-    # print(f'{edge=}')
     # find the radius of the detected star
     data_scan = data[locx:locx+100, locy] # limit the region that we are searching
     # data_scan= data[locx, locy:locy+100]
