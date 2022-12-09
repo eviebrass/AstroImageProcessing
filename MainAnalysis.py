@@ -175,19 +175,60 @@ print('Source Counting is Finished')
 #determing the source flux 
 source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
 
+#%%
+#determing the soruce flux 
+source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
+
 # =============================================================================
 # 5.5 Calibrating the fluxes. 
 # Converting instrumental counts to source magnitude
 # =============================================================================
-
 #converting counts into instrumental magnitude 
-inst_mag = -2.5 * np.log10(source_flux)
-
+inst_mag = -2.5*np.log10(source_flux)
 #converting instrumental arguments into calibrated magnitudes 
 mag = point_0 + inst_mag
-#uncertainty in magnitude 
+#plotting histogram of magnitudes
 plt.hist(mag,bins=10)
+plt.xlabel('m')
+plt.ylabel('Freq')
+plt.show()
 
+# =============================================================================
+# 6.1 Comparison to liner fit
+# =============================================
+
+#determining the numbner of sources detected brighter than a magntitude limit 
+limit= 3631e-26 #AB system magntiute
+pixl_deg = np.pi/(0.258*648000) #conversion factor from pixl to deg 
+
+area = np.shape(data)[0]*np.shape(data)[1] *pixl_deg*pixl_deg #finding area of whole image
+#range of magnitudes considered 
+
+mag_range = np.arange(np.min(mag),np.max(mag),step=0.1)
+#determining number of objects with brightness less than given magnitude
+n_m = [] # number of objects
+
+for mag_max in  mag_range: #maximum magnitude
+    count_obj_greater = 0 #number of objects with magnitude greater than each mag
+    for each_mag  in mag: #magnitude of each object 
+        if each_mag > mag_max: 
+            count_obj_greater += 1 
+    n_m.append(count_obj_greater) 
+N_m = np.array(n_m)/area #density of number of objects
+
+#taking the log of the magnitude 
+log_N_m = np.log10(N_m)
+
+#fitting to find gradient 
+pars,cov = np.polyfit(mag_range,log_N_m,1,cov=1)
+print('Gradient %.3e +/- %.3e' % (pars[0],cov[0,0]))
+
+plt.plot(mag_range,log_N_m,'x')
+plt.plot(mag_range,pars[0]*mag_range + pars[1],color='black')
+plt.xlabel('m')
+plt.ylabel('log(N(m))')
+plt.grid()
+plt.show()
 
 
 
