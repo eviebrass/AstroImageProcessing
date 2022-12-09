@@ -109,68 +109,70 @@ mask_count = mask_array # array we will update to count stars
 
 # information we are getting from the searching
 counter = 0
-xlocs = ['object x centers']
-ylocs = ['object y centers']
+xvals = ['object x centers']
+yvals = ['object y centers']
 rs = []
 
 total_flux =['total flux for aperture']
 local_back =['Finding local background']
 for i in range(0, 500): # testing by fixing the number of sources we want to count
     print(f'{i=}')
-    x, y, r, max_val, local_edge = func.find_source(data_count,nbins=4000, plot=False)
-    # print(f'{x=}, {y=}, {r=}, {max_val=}, {local_edge=}')
-    if max_val > local_edge: # not counting things one pixel big
-        if r <= 1:
-            mask_count[x,y] = 0 # remove 1 random bright pixel
-            data_count = mask_count * data_count
-            # print('found small object')
-            continue
+    max_val, xlocs, ylocs = func.find_source(data_count)
+    for x, y in zip(xlocs, ylocs):
+        # print(x,y)
+        r, local_edge = func.source_radius(data_count, x, y)
+        if max_val > local_edge: # not counting things one pixel big
+            if r <= 1:
+                mask_count[x,y] = 0 # remove 1 random bright pixel
+                data_count = mask_count * data_count
+                # print('found small object')
+                continue
+            
+            xvals.append(x)
+            yvals.append(y)
+            rs.append(r)
+            counter += 1 # counting the number of detected objects
+            # print(f'{counter=}')
+            
+            total_flux_each = [] #total flux for given aperture
+            back_flux_each = [] #total flux for background 
+            
+            for px in range(500):
+                for py in range(500):
+                    # determining total flux for fixed aperture
+                    if func.remove_circle(px, py, y, x, r, mask_count, photometry=1) == True:
+                        total_flux_each.append(data_count[px,py])
+                    #determing the number of pixel for object 
+                    pixl_source = func.remove_circle(px, py, y, x, r+10, mask_count, pixl=1)
+                    #masking the object 
+                    func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
+            
+            data_count *= mask_count
+            
+            for px in range(500):
+                for py in range(500):
+                    if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
+                        back_flux_each.append(data_count[px,py]) #adding flux for each background to list
         
-        xlocs.append(x)
-        ylocs.append(y)
-        rs.append(r)
-        counter += 1 # counting the number of detected objects
-        # print(f'{counter=}')
+        elif max_val < global_background_fit[1]:
+            break # don't want things fainter than background
+        elif max_val < local_edge:
+            print('too faint')
         
-        total_flux_each = [] #total flux for given aperture
-        back_flux_each = [] #total flux for background 
+        #finding total flux for set aperture
+        total_flux.append(np.sum(total_flux_each))
         
-        for px in range(500):
-            for py in range(500):
-                # determining total flux for fixed aperture
-                if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
-                    total_flux_each.append(data_count[px,py])
-                #determing the number of pixel for object 
-                pixl_source = func.remove_circle(px, py, y, x, r+10, mask_count, pixl=1)
-                #masking the object 
-                func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
-        
-        data_count *= mask_count
-        
-        for px in range(600):
-            for py in range(600):
-                if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
-                    back_flux_each.append(data_count[px,py]) #adding flux for each background to list
-    
-    elif max_val < global_background_fit[1]:
-        break # don't want things fainter than background
-    elif max_val < local_edge:
-        print('too faint')
-    
-    #finding total flux for set aperture
-    total_flux.append(np.sum(total_flux_each))
-    
-    #determing background count per pixel 
-    back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
-    #determing the local background by multiplying flux by pixels in aperture 
-    local_back_each = back_count_pixl * pixl_source 
-    local_back.append(local_back_each)
+        #determing background count per pixel 
+        back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
+        #determing the local background by multiplying flux by pixels in aperture 
+        local_back_each = back_count_pixl * pixl_source 
+        local_back.append(local_back_each)
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print('Source Counting is Finished')
 
-#determing the soruce flux 
+#determing the source flux 
 source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
 
 # =============================================================================
@@ -179,7 +181,7 @@ source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
 # =============================================================================
 
 #converting counts into instrumental magnitude 
-inst_mag = -2.5*np.log10(source_flux)
+inst_mag = -2.5 * np.log10(source_flux)
 
 #converting instrumental arguments into calibrated magnitudes 
 mag = point_0 + inst_mag

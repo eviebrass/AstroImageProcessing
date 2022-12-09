@@ -109,21 +109,25 @@ def remove_rect(x1, x2, y1, y2, mask_array):
     mask_array[y1:y2, x1:x2] = 0
     
 ###### DETECTING SOURCES ######
-def find_source(data, nbins = 4000, plot=False):
+def find_source(data):
     max_val = np.max(data)
     locx, locy = np.where(data == max_val)
-    print(f'{locx=}')
-    print(f'{locy=}')
+    r = 0
+    l = 50 # length to go either side of the source
+    return max_val, locx, locy
+
+def source_radius(data, locx, locy, nbins = 4000, plot=False):
+    r = 0 
     locx = int(locx)
     locy = int(locy)
-    r = 0 
-    # take an area for the background calculations
-    l = 50 # length to go either side of the source
-    data_local = data[locx-l:locx+l, locy-l:locy+l] # picking out a square around the source
+    # pick out an area around the source
+    l = 50 
+    data_local = data[locx-l:locx+l, locy-l:locy+l]
     background_fit, background_cov = histogram_fit(data_local, nbins, plot=plot)
     background = background_fit[1]
     sigma = background_fit[2]
     edge = background + 3 * sigma # anything below this is defined as background
+    
     # find the radius of the detected star
     data_scan = data[locx:locx+100, locy] # limit the region that we are searching
     # data_scan= data[locx, locy:locy+100]
@@ -131,8 +135,8 @@ def find_source(data, nbins = 4000, plot=False):
         if data_scan[x] < edge:
             r = x
             break
-    return locx, locy, r, max_val, edge
-    
+    return r, edge
+
 
 
 
