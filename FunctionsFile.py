@@ -27,10 +27,10 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
     hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0)
     if plot == True:
         x_hist_fit = np.linspace(3300, 3650, 1000)
-        plt.plot(x_hist_fit, fit_func(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
-        plt.errorbar(hist_centers, hist_y, yerr= hist_error, color='red', fmt='x')
+        # plt.plot(x_hist_fit, fit_func(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
+        # plt.errorbar(hist_centers, hist_y, yerr= hist_error, color='red', fmt='x')
         plt.hist(data_flat, bins=nbins, label ='Pixel Counts')
-        plt.xlim(3300,3650)
+        # plt.xlim(3300,3650)
         plt.title(title)
         plt.legend()
         plt.show()
@@ -45,6 +45,10 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
     y_mag = (y - x_center) * (y - x_center)
     r_sq = r * r
     edge_case = 0 # if at an edge then this changes to 1
+    # x_len = 4172
+    # y_len = 2135
+    x_len = 500
+    y_len = 500
     
     # counter to determine the number of pixels associated with source 
     pixl_count = 0 
@@ -53,19 +57,19 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
         return pixl_count
     ### dealing with sources close to the edges
     # set the mask array to not go past the edges
-    if y_center+l>4172:
-        reduced_mask = mask_array[y_center:4172, x_center-l:x_center+l]
+    if x_center+l > y_len:
+        reduced_mask = mask_array[y_center:y_len, x_center-l:x_center+l]
         edge_case = 1
         # print('HIT RIGHT BOUNDARY')
-    elif x_center+l>2135:
-        reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:2135]
+    elif x_center+l > x_len:
+        reduced_mask = mask_array[y_center-l:y_center+l, x_center-l:x_len]
         edge_case = 2
         # print('HIT TOP BOUNDARY')
-    elif y_center-l<0:
+    elif y_center-l < 0:
         reduced_mask = mask_array[0:y_center+l, x_center-l:x_center+l]
         edge_case = 3
         # print('HIT LEFT BOUNDARY')
-    elif x_center-l<0:
+    elif x_center-l < 0:
         reduced_mask = mask_array[y_center-l:y_center+l, 0:x_center+l]
         edge_case = 4
         # print('HIT BOTTOM BOUNDARY')
@@ -86,15 +90,14 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
     if edge_case == 0:
         mask_array[y_center-l:y_center+l, x_center-l:x_center+l] = reduced_mask
     elif edge_case == 1:
-        mask_array[y_center:4172, x_center-l:x_center+l] = reduced_mask
+        mask_array[y_center:x_len, x_center-l:x_center+l] = reduced_mask
     elif edge_case == 2:
-        mask_array[y_center-l:y_center+l, x_center-l:2135] = reduced_mask
+        mask_array[y_center-l:y_center+l, x_center-l:y_len] = reduced_mask
     elif edge_case == 3:
         mask_array[0:y_center+l, x_center-l:x_center+l] = reduced_mask
     elif edge_case == 4:
         mask_array[y_center-l:y_center+l, 0:x_center+l] = reduced_mask
-        
-
+         
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     # gradients of each side of the triangle
     m1 = (x3 - x1) / (y3 - y1)
@@ -113,26 +116,25 @@ def find_source(data):
     max_val = np.max(data)
     locx, locy = np.where(data == max_val)
     r = 0
-    l = 50 # length to go either side of the source
+    l = 20 # length to go either side of the source
     return max_val, locx, locy
 
-def source_radius(data, locx, locy, nbins = 4000, plot=False):
+def source_radius(data, locx, locy, nbins = 4000, p0=[7e6,3420,18], plot=False):
     r = 0 
     locx = int(locx)
     locy = int(locy)
     # pick out an area around the source
-    l = 50 
+    l = 20 
     data_local = data[locx-l:locx+l, locy-l:locy+l]
-    background_fit, background_cov = histogram_fit(data_local, nbins, plot=plot)
+    background_fit, background_cov = histogram_fit(data_local, nbins, p0=p0, plot=plot)
     background = background_fit[1]
     sigma = background_fit[2]
     edge = background + 3 * sigma # anything below this is defined as background
-    
     # find the radius of the detected star
-    data_scan = data[locx:locx+100, locy] # limit the region that we are searching
-    # data_scan= data[locx, locy:locy+100]
+    data_scan = data[locx:locx+1000, locy] # limit the region that we are searching
     for x in range(len(data_scan)): # pick out the points along y to find radius
-        if data_scan[x] < edge:
+        print(f'{data_scan[x]=}')
+        if data_scan[x] <= edge:
             r = x
             break
     return r, edge
