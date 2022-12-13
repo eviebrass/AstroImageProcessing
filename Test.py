@@ -43,13 +43,14 @@ test_obj = []
 for i in range(n_objects): # same as i value
     x_current = loc_ran[0][i]
     y_current = loc_ran[1][i]
-    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=1000)
+    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=10000)
     test_obj.append(obj_n)
 
 obj = sum(test_obj) # creating an object 
 
 # add noise to the background of the test
-noise = np.random.normal(0, np.max(obj)-1.7, size=(size,size))
+mu_noise, sigma_noise = 8, 2
+noise = np.random.normal(mu_noise, sigma_noise, size=(size,size))
 obj_final = obj + noise
 
 func.see_image(obj_final)

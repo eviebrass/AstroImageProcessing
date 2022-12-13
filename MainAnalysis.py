@@ -123,8 +123,6 @@ for i in range(0, 1000000): # testing by fixing the number of sources we want to
     for x, y in zip(xlocs, ylocs):
         # print(x,y)
         r, local_edge = func.source_radius(data_count, x, y)
-        if r > 30:
-            r = 20
         if max_val > local_edge: # not counting things one pixel big
             if r <= 3:
                 mask_count[x,y] = 0 # remove 1 random bright pixel
@@ -144,18 +142,18 @@ for i in range(0, 1000000): # testing by fixing the number of sources we want to
             for px in range(150):
                 for py in range(150):
                     # determining total flux for fixed aperture
-                    # if func.remove_circle(px, py, y, x, r, mask_count, photometry=1) == True:
+                    # if func.remove_circle(px, py, x, y, r, mask_count, photometry=1) == True:
                     #     total_flux_each.append(data_count[px,py])
                     #determing the number of pixel for object 
-                    # pixl_source = func.remove_circle(px, py, y, x, r+10, mask_count, pixl=1)
+                    # pixl_source = func.remove_circle(px, py, x, y, r+10, mask_count, pixl=1)
                     #masking the object 
-                    func.remove_circle(px, py, y, x, r, mask_count) # make sure flip x and y here
+                    func.remove_circle(px, py, x, y, r, mask_count) # make sure flip x and y here
             
             data_count *= mask_count
             
             # for px in range(500):
             #     for py in range(500):
-            #         if func.remove_circle(px, py, y, x, r+10, mask_count, photometry=1) == True:
+            #         if func.remove_circle(px, py, x, y, r+10, mask_count, photometry=1) == True:
             #             back_flux_each.append(data_count[px,py]) #adding flux for each background to list
         
         elif max_val < global_background_fit[1]:
