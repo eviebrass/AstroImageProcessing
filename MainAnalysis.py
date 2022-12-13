@@ -17,12 +17,12 @@ import csv
 point_0 = 2.53e1
 point_0_un = 2e-2
 
-#%% Don't run this file all the time
-# Check the contents of the FITS file
-hdulist = fits.open('A1_mosaic.fits')
-with open('hdulist.pickle', 'wb') as f:
-    pickle.dump(hdulist[0].data, f)
-#%%
+# # Check the contents of the FITS file
+# hdulist = fits.open('A1_mosaic.fits')
+# with open('hdulist.pickle', 'wb') as f:
+#     pickle.dump(hdulist[0].data, f)
+
+
 with open('hdulist.pickle', 'rb') as f:
     data = pickle.load(f)
 
@@ -68,10 +68,10 @@ global_background_fit, global_background_cov = func.histogram_fit(
 mask_array = np.ones(np.shape(data)) # initially all 1
 
 # remove circular parts
-for px in range(500):
-    for py in range(500):
+for px in range(600):
+    for py in range(600):
         # remove circle parts
-        func.remove_circle(px, py, 1200, 3000, 230, mask_array)
+        func.remove_circle(px, py, 1200, 3000, 240, mask_array)
         func.remove_circle(px, py, 558, 3105, 45, mask_array)
         func.remove_circle(px, py, 757, 2555, 40, mask_array)
         func.remove_circle(px, py, 687, 2066, 45, mask_array)
@@ -97,8 +97,9 @@ mask_array[207:217, 887:1434] = 0
 mask_array[207:210, 810:826] = 0
 mask_array[205:232, 819:822] = 0
 mask_array[114:135, 1424:1431] = 0
-    
+   
 data_no_bleed = mask_array * data
+func.see_image(data_no_bleed) 
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
 print('removing bleeds is complete')
@@ -116,20 +117,23 @@ rs = []
 
 total_flux =['total flux for aperture']
 local_back =['Finding local background']
-for i in range(0, 1000000): # testing by fixing the number of sources we want to count
-    if i % 50 == 0:    
+for i in range(0, 10): # testing by fixing the number of sources we want to count
+    if i % 1 == 0:    
         print(f'{i=}') # only want to print multiples of 100
-    max_val, xlocs, ylocs = func.find_source(data_count)
+    max_val, ylocs, xlocs = func.find_source(data_count)
+    print(f'{max_val}, {xlocs=}, {ylocs=}')
     for x, y in zip(xlocs, ylocs):
         # print(x,y)
         r, local_edge = func.source_radius(data_count, x, y)
-        if max_val > local_edge: # not counting things one pixel big
-            if r <= 3:
-                mask_count[x,y] = 0 # remove 1 random bright pixel
-                data_count = mask_count * data_count
-                # print('found small object')
+        # print(f'{r=}, {local_edge=}')
+        if max_val > local_edge:
+            if r <= 3: # not countign small objects that could be noise
+                mask_count[y,x] = 0 # remove 1 random bright pixel
+                data_count *= mask_count
+                print('found small object')
                 continue
-            
+           
+            print('trigger')
             xvals.append(x)
             yvals.append(y)
             rs.append(r)
@@ -139,8 +143,8 @@ for i in range(0, 1000000): # testing by fixing the number of sources we want to
             total_flux_each = [] #total flux for given aperture
             back_flux_each = [] #total flux for background 
             
-            for px in range(150):
-                for py in range(150):
+            for px in range(300):
+                for py in range(300):
                     # determining total flux for fixed aperture
                     # if func.remove_circle(px, py, x, y, r, mask_count, photometry=1) == True:
                     #     total_flux_each.append(data_count[px,py])
@@ -150,6 +154,7 @@ for i in range(0, 1000000): # testing by fixing the number of sources we want to
                     func.remove_circle(px, py, x, y, r, mask_count) # make sure flip x and y here
             
             data_count *= mask_count
+            print('masked source')
             
             # for px in range(500):
             #     for py in range(500):
@@ -157,6 +162,7 @@ for i in range(0, 1000000): # testing by fixing the number of sources we want to
             #             back_flux_each.append(data_count[px,py]) #adding flux for each background to list
         
         elif max_val < global_background_fit[1]:
+            print('all sources counted')
             break # don't want things fainter than background
         elif max_val < local_edge:
             print('too faint')
