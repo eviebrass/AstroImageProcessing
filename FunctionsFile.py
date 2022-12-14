@@ -11,7 +11,7 @@ import numpy as np
 
 ###### SEE THE IMAGE WE ARE LOOKING AT ######
 def see_image(data):
-    plt.imshow(data, cmap='gray')
+    plt.imshow(data, cmap='gray', origin='lower')
     plt.colorbar()
     plt.show()
 
@@ -38,65 +38,71 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
 
 ###### IMAGE MASKING ######
 def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
-    l = r + 10
+    # print(f'{x_center=}, {y_center=}')
+    l = r + 50
     x = x_val + x_center - l # the pixel number in the context of image
-    y = y_val + y_center - l 
-    x_mag = (x - x_center) * (x - x_center)
-    y_mag = (y - y_center) * (y - y_center)
-    r_sq = r * r
-    edge_case = 0 # if at an edge then this changes to 1
-    # x_len = 4172
-    # y_len = 2135
-    x_len = 500
-    y_len = 500
+    y = y_val + y_center - l
+    y_len = 4172
+    x_len = 2135
+    # x_len = 500
+    # y_len = 500
     
     # counter to determine the number of pixels associated with source 
     pixl_count = 0 
     
     if pixl == 1:
         return pixl_count
-    ### dealing with sources close to the edges
-    # set the mask array to not go past the edges
+    
+    ### dealing with sources close to the edges (including corners)
     if x_center+l > x_len:
-        reduced_mask = mask_array[y_center-l:y_len, y_center-l:y_center+l]
-        edge_case = 1
+        reduced_mask = mask_array[y_center-l:y_center+l+1, x_center-l:x_len+1]
+        if y_center+l > y_len: 
+            reduced_mask = mask_array[y_center-l:y_len+1, x_center-l:x_len+1]
+            # print('HIT TOP RIGHT CORNER')
+        if y_center-l < 0:
+            y = y_val
+            reduced_mask =  mask_array[0:y_center+l+1, x_center-l:x_len+1]
+            # print('HIT BOTTOM RIGHT CORNER)
         # print('HIT RIGHT BOUNDARY')
+    
     elif y_center+l > y_len:
-        reduced_mask = mask_array[x_center-l:x_center+l, y_center-l:y_len]
-        edge_case = 2
+        reduced_mask = mask_array[y_center-l:y_len+1, x_center-l:x_center+l+1]
         # print('HIT TOP BOUNDARY')
+   
     elif x_center-l < 0:
-        reduced_mask = mask_array[0:x_center+l, y_center-l:y_center+l]
-        edge_case = 3
+        x = x_val
+        reduced_mask = mask_array[y_center-l:y_center+l+1, 0:x_center+l+1]
+        if y_center+l > y_len:
+            reduced_mask = mask_array[y_center-l:y_len+1, 0:x_center+l+1]
+            # print('HIT BOTTOM RIGHT CORNER')
+        if y_center-l < 0:
+            y = y_val
+            reduced_mask = mask_array[0:y_center+l+1, 0:x_center+l+1]
+            # print('HIT BOTTOM LEFT CORNER)
         # print('HIT LEFT BOUNDARY')
+    
     elif y_center-l < 0:
-        reduced_mask = mask_array[x_center-l:x_center+l, 0:y_center+l]
-        edge_case = 4
+        y = y_val
+        reduced_mask = mask_array[0:y_center+l+1, x_center-l:x_center+l+1]
         # print('HIT BOTTOM BOUNDARY')
+   
     else:
-        reduced_mask = mask_array[x_center-l:x_center+l, y_center-l:y_center+l]
+        reduced_mask = mask_array[y_center-l:y_center+l+1, x_center-l:x_center+l+1]
     
-    xmax = np.shape(reduced_mask)[0] # dont want to go longer than the reduced mass size
-    ymax = np.shape(reduced_mask)[1]
     
-    if x_mag + y_mag < r_sq and x_val < xmax and y_val < ymax:
+    x_mag = (x - x_center) * (x - x_center)
+    y_mag = (y - y_center) * (y - y_center)
+    r_sq = r * r
+    xmax = np.shape(reduced_mask)[1] # dont want to go longer than the reduced mass size
+    ymax = np.shape(reduced_mask)[0]
+    
+    if x_mag + y_mag < r_sq and x_val < xmax and y_val < ymax: 
+        # xmax and ymax mean don't go outside mask size
         # if not doing photometry then mask section
         if photometry == 0:
-            reduced_mask[x_val, y_val] = 0
+            reduced_mask[y_val, x_val] = 0
         if photometry == 1:
             return True
-    
-    # updating the mask array
-    if edge_case == 0:
-        mask_array[y_center-l:y_center+l, x_center-l:x_center+l] = reduced_mask
-    elif edge_case == 1:
-        mask_array[x_center-l:x_len, y_center-l:y_center+l] = reduced_mask
-    elif edge_case == 2:
-        mask_array[x_center-l:x_center+l, y_center-l:y_len] = reduced_mask
-    elif edge_case == 3:
-        mask_array[0:x_center+l, y_center-l:y_center+l] = reduced_mask
-    elif edge_case == 4:
-        mask_array[x_center-l:x_center+l, 0:y_center+l] = reduced_mask
          
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     # gradients of each side of the triangle
@@ -114,29 +120,54 @@ def remove_rect(x1, x2, y1, y2, mask_array):
 ###### DETECTING SOURCES ######
 def find_source(data):
     max_val = np.max(data)
-    locx, locy = np.where(data == max_val)
+    locy, locx = np.where(data == max_val)
+    # flip x and y because how np.where works
+    # matrix i=y, j=x
     r = 0
     l = 50 # length to go either side of the source
-    return max_val, locx, locy
+    return max_val, locy, locx
 
 def source_radius(data, locx, locy, nbins = 4000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
     r = 0 
     locx = int(locx)
     locy = int(locy)
     # pick out an area around the source
-    l = 20 
+    l = 40 
+    r1 = 0
+    r2 = 0
+    r3 = 0
+    r4 = 0
     data_local = data[locx-l:locx+l, locy-l:locy+l]
     background_fit, background_cov = histogram_fit(data_local, nbins, p0=p0, plot=plot, xlim1=xlim1, xlim2=xlim2)
     background = background_fit[1]
     sigma = background_fit[2]
-    edge = background + 2 * sigma # anything below this is defined as background
+    edge = background + 3 * sigma # anything below this is defined as background
+   
     # find the radius of the detected star
-    data_scan = data[locx:locx+1000, locy] # limit the region that we are searching
-    for x in range(len(data_scan)): # pick out the points along y to find radius
-        # print(f'{data_scan[x]=}')
-        if data_scan[x] <= edge:
-            r = x
+    data_scan1 = data[locy:locy+30, locx] # limit the region that we are searching
+    #swapped x and y around as matrix are defined the other way round
+    for xR in range(len(data_scan1)): # pick out the points along y to find radius
+        if data_scan1[xR] <= edge:
+            r1 = xR
             break
+    data_scan2 = data[locy-30:locy, locx]
+    for xL in range(len(data_scan1)): # pick out the points along y to find radius
+        if data_scan1[xL] <= edge:
+            r2 = xL
+            break
+        
+    data_scan3 = data[locy, locx:locx+30]
+    for yU in range(len(data_scan3)):
+        if data_scan3[yU] <= edge:
+            r3 = yU
+            break
+    data_scan4 = data[locy, locx-30:locx]
+    for yD in range(len(data_scan4)):
+        if data_scan4[yD] <= edge:
+            r4 = yD
+            break  
+        
+    r = np.max([r1, r2, r3, r4])
     return r, edge
 
 
