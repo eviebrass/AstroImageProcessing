@@ -95,7 +95,7 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
         return hist_fit, hist_cov, hist_centers, hist_y
 
 ###### IMAGE MASKING ######
-def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
+def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0):
 # =============================================================================
 # Masking objects assuming circular shapes 
 # x_val and y_val are all the coordiante values in image 
@@ -114,11 +114,6 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
     # x_len = 500
     # y_len = 500
     
-    # counter to determine the number of pixels associated with source 
-    pixl_count = 0 
-    
-    if pixl == 1:
-        return pixl_count
     
     ### dealing with sources close to the edges (including corners)
     if x_center+l > x_len:
@@ -162,6 +157,7 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
     r_sq = r * r
     xmax = np.shape(reduced_mask)[1] # dont want to go longer than the reduced mass size
     ymax = np.shape(reduced_mask)[0]
+
     
     if x_mag + y_mag < r_sq and x_val < xmax and y_val < ymax: 
         # xmax and ymax mean don't go outside mask size
@@ -170,6 +166,8 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
             reduced_mask[y_val, x_val] = 0
         if photometry == 1:
             return True
+        
+        
          
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
 # =============================================================================
@@ -273,7 +271,7 @@ def detect_sources(data, mask):
 # Data is the matrix of the image 
 # mask is the mask array 
 # Output: number of objects, location, radius, total flux of source, 
-# annular/background flux per pixel, total flux of source - background 
+# total flux of source - background 
 # =============================================================================
     
     # find the background in this section
@@ -298,10 +296,11 @@ def detect_sources(data, mask):
     # objects radius
     rs = [0]
     
-    # total flux of object 
+    # total flux of each object 
     total_flux =[0]
-    # background flux of object 
+    # background flux of each object 
     annular_back =[0]
+
     
     # count the number of sources and get the photometery stuff out of it
     for i in range(0, 50): # set a high number of sources
@@ -341,14 +340,16 @@ def detect_sources(data, mask):
                 
                 source_flux_each = [] # flux of each pixel in  source 
                 back_flux_each = [] # flux of each pixel in annular region 
+                # counter to determine the number of pixels associated with source 
+                pixl_source = 0
                 
                 for px in range(150):
                     for py in range(150):
                         # determining total flux of the object 
                         if remove_circle(px, py, x, y, r, mask, photometry=1) == True:
+                            # determing the number of pixel in object 
+                            pixl_source += 1
                             source_flux_each.append(data[px,py])
-                        # determing the number of pixel in object 
-                        pixl_source = remove_circle(px, py, x, y, r, mask, pixl=1)
                         # masking the object 
                         remove_circle(px, py, x, y, r, mask) 
                 
@@ -356,6 +357,8 @@ def detect_sources(data, mask):
                 
                 for px in range(200):
                     for py in range(200):
+                        if remove_circle(px, py, x, y, r+10, mask, photometry=1) == True:
+                            back_flux_each.append(data[px,py]) #adding flux for background in annualar region to list
                         # determining the flux of annualar region around object 
                         if remove_circle(px, py, x, y, r+10, mask, photometry=1 == True):
                             back_flux_each.append(data[px,py]) #adding flux for each pixel in background to list
@@ -368,17 +371,14 @@ def detect_sources(data, mask):
             
             #data *= mask
             
-        #assummng flux of each pixel in object to find the flux for each object 
-        total_flux.append(np.sum(source_flux_each)) 
-            
-            
-         #determing background flux per pixel in background 
-         back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) 
-         #determing the background in source by multiplying background flux per 
-         # pixels by the number of pixels in the objects 
-         annular_back_each = back_count_pixl * pixl_source 
-         #adding the total background contribution for each source to list for all objects 
-         annular_back.append(annular_back_each)
+            #assummng flux of each pixel in object to find the flux for each object 
+            total_flux.append(np.sum(source_flux_each)) 
+            #determing background flux per pixel in background 
+            back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) 
+            #determing the background in source by multiplying background flux per 
+            # pixels by the number of pixels in the objects 
+            annular_back_each = back_count_pixl * pixl_source 
+            #adding the total background contribution for each source to list for all objects 
+            annular_back.append(annular_back_each)
         
-    return counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back
-    
+    return counter, xvals, yvals, rs, total_flux, annular_back
