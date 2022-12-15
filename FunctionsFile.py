@@ -279,7 +279,7 @@ def detect_sources(data, mask):
 # Data is the matrix of the image 
 # mask is the mask array 
 # Output: number of objects, location, radius, total flux of source, 
-# annular/background flux per pixel, total flux of source - background 
+# annular/background flux per pixel, total background flux in source
 # =============================================================================
     
     # find the background in this section
