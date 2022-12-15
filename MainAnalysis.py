@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Nov 25 10:20:04 2022
-
 @author: eviebrass
 """
 import numpy as np
@@ -10,7 +9,8 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import pickle
 from scipy.optimize import curve_fit
-import CatalogueSaving as s
+from astropy.io import ascii # for saving catalogue as acsii fie
+from astropy.table import Table
 import FunctionsFile as func
 import csv
 
@@ -116,116 +116,45 @@ start = time.perf_counter() # start time of the code
 data_count = data_no_bleed[500:1000, 500: 1000] #[1400:1600, 1400:1600] # data using to count stars
 mask_count = mask_array[500: 1000, 500:1000] #[1400:1600, 1400:1600] # array we will update to count stars
 
-counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back = func.detect_sources(data_count, mask_count)
+#obtaining soruce data for catalogue 
 
-# ###### FIND THE BACKGROUND OF THE DATA YOU ARE LOOKING AT ######
-# background_fit, background_cov = func.histogram_fit(
-#     data_count, 
-#     nbins=4000, 
-#     title='Global Background', 
-#     fit_func=func.gaussian, 
-#     plot=True)
+counter, xvals, yvals, rs, total_flux, annular_back = func.detect_sources(data_count, mask_count)
 
-# background = background_fit[1]
-# print(f'{background=}')
 
-# # information we are getting from the searching
-# counter = 0
-# stop = 0 # used to stop entire for loop if stuck on a point 
-# xvals = ['object x centers']
-# yvals = ['object y centers']
-# rs = []
-
-# total_flux =['total flux for aperture']
-# local_back =['Finding local background']
-# for i in range(0, 10000000): # testing by fixing the number of sources we want to count
-#     # find the source
-#     max_val, ylocs, xlocs = func.find_source(data_count)
-    
-#     # stop if got stuck or detecting too faint things
-#     if stop==1 or max_val < background:
-#         print('Counting Stopped Short')
-#         break
-    
-#     # print(f'{max_val}, {xlocs=}, {ylocs=}')
-#     for x, y in zip(xlocs, ylocs):
-#         # print(x,y)
-#         r, local_edge = func.source_radius(data_count, x, y,nbins=500) 
-#         # print(f'{r=}, {local_edge=}')
-#         if max_val > local_edge:
-#             if r <= 3: # not countign small objects that could be noise
-#                 mask_count[y,x] = 0 # remove 1 random bright pixel
-#                 data_count *= mask_count
-#                 # print(f'found small object {x=}, {y=}')
-#                 continue
-           
-#             # check that not got stuck on one point
-#             if x == xvals[-1] and y == yvals[-1]:
-#                 print('stuck on a point')
-#                 print(f'{i=}, {x=}, {y=}')
-#                 stop=1
-#                 break
-            
-#             xvals.append(x)
-#             yvals.append(y)
-#             rs.append(r)
-#             counter += 1 # counting the number of detected objects
-#             print(f'{counter=}, {max_val=}')
-            
-#             total_flux_each = [] # total flux for given aperture
-#             back_flux_each = [] # total flux for background 
-            
-#             for px in range(150):
-#                 for py in range(150):
-#                     # determining total flux for fixed aperture
-#                     if func.remove_circle(px, py, x, y, r, mask_count, photometry=1) == True:
-#                         total_flux_each.append(data_count[px,py])
-#                     # determing the number of pixel for object 
-#                     pixl_source = func.remove_circle(px, py, x, y, r+10, mask_count, pixl=1)
-#                     # masking the object 
-#                     func.remove_circle(px, py, x, y, r, mask_count) # make sure flip x and y here
-            
-#             data_count *= mask_count
-            
-#             for px in range(200):
-#                 for py in range(200):
-#                     if func.remove_circle(px, py, x, y, r+10, mask_count, photometry=1) == True:
-#                         back_flux_each.append(data_count[px,py]) #adding flux for each background to list
-        
-#         elif max_val <= local_edge:
-#             print(f'object too faint, {i=}, {max_val=}')
-#             mask_count[y, x] = 0
-#             data_count *= mask_count
-#             continue
-        
-#         data_count *= mask_count
-#         #finding total flux for set aperture
-#         total_flux.append(np.sum(total_flux_each))
-        
-#         #determing background count per pixel 
-#         back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
-#         #determing the local background by multiplying flux by pixels in aperture 
-#         local_back_each = back_count_pixl * pixl_source 
-#         local_back.append(local_back_each)
-        
-#%%
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print('Source Counting is Finished')
-
-# determing the source flux 
-source_flux = np.array(total_flux[1:]) - np.array(annular_back[1:])
 
 end = time.perf_counter()
 
 total_time = (end - start)/60 # find the amount of time it takes to run.
 print(f'{total_time = } minutes')
 
+#%% Writing an ASCII Table using ascii.write() 
+
+#defining data
+data = {'Position x': xvals[1:],
+        'Position y': yvals[1:],
+         'Radius': rs[1:],
+         'Counts Source': total_flux[1:] ,
+         #'Un counts': un_source_flux,
+         'Source Background': annular_back[1:]}
+         #'Source back un': annular_back_un,}
+
+# writing a file with data 
+ascii.write(data,'catalogue_ap=100.csv',format='csv',overwrite=1)
+
 #%%
 # =============================================================================
 # 5.5 Calibrating the fluxes. 
 # Converting instrumental counts to source magnitude
 # =============================================================================
+#reading the data 
+x_val,y_val, r, total_flux,source_back = np.loadtxt('catalogue_ap=5.csv', delimiter= ',', skiprows = 2 , unpack=1)
+
+# determing the source flux 
+source_flux = total_flux - source_back
+print(source_flux)
 
 # converting counts into instrumental magnitude 
 inst_mag = -2.5 * np.log10(source_flux)
@@ -270,23 +199,10 @@ log_fit, log_cov = func.plot_with_best_fit(
     data_label = 'Collected Data', 
     fit_label = 'Linear Fit', 
     x_label = 'magnitude', 
-    y_label = 'log$_{10}$(<m)', 
+    y_label = 'log$_{10}$(N(m))', 
     data_colour = 'red', 
     fit_colour = 'black', 
     fit_func = func.linear)
 plt.plot(mag_centers, log_N, 'x')
 
 print(f'gradient ={ log_fit[0]:.3f}')
-
-
-
-
-
-
-
-
-
-
-
-
-
