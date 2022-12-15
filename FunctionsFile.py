@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Dec  6 10:14:11 2022
-@author: eviebrass
-"""
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import numpy as np
@@ -279,7 +273,7 @@ def detect_sources(data, mask):
 # Data is the matrix of the image 
 # mask is the mask array 
 # Output: number of objects, location, radius, total flux of source, 
-# annular/background flux per pixel, total background flux in source
+# annular/background flux per pixel, total flux of source - background 
 # =============================================================================
     
     # find the background in this section
@@ -297,12 +291,17 @@ def detect_sources(data, mask):
     
     # information we are getting from the searching
     counter = 0
-    xvals = ['object x centers']
-    yvals = ['object y centers']
-    rs = []
+    # object x centers
+    xvals = [0]
+    # objects y centres
+    yvals = [0]
+    # objects radius
+    rs = [0]
     
-    total_flux =['Total flux of object']
-    annular_back =['Finding background of object ']
+    # total flux of object 
+    total_flux =[0]
+    # background flux of object 
+    annular_back =[0]
     
     # count the number of sources and get the photometery stuff out of it
     for i in range(0, 50): # set a high number of sources
@@ -369,19 +368,17 @@ def detect_sources(data, mask):
             
             #data *= mask
             
-            #summing flux of each pixel in object to find the flux for each object 
-            total_flux.append(np.sum(source_flux_each)) 
+        #assummng flux of each pixel in object to find the flux for each object 
+        total_flux.append(np.sum(source_flux_each)) 
             
-            #determing background flux per pixel in background 
-            back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) 
-            #determing the background in source by multiplying background flux per 
-            # pixels by the number of pixels in the objects 
-            annular_back_each = back_count_pixl * pixl_source 
-            #adding the total background contribution for each source to list for all objects 
-            annular_back.append(annular_back_each)
+            
+         #determing background flux per pixel in background 
+         back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) 
+         #determing the background in source by multiplying background flux per 
+         # pixels by the number of pixels in the objects 
+         annular_back_each = back_count_pixl * pixl_source 
+         #adding the total background contribution for each source to list for all objects 
+         annular_back.append(annular_back_each)
         
     return counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back
-
-
-
     
