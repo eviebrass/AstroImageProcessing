@@ -15,16 +15,70 @@ def see_image(data):
     plt.colorbar()
     plt.show()
 
-###### HISTOGRAM WITH GAUSSIAN FIT ######
+###### FUNCTIONS FOR FITTING ######
 def gaussian(data, A, mean, sigma):
     return A*np.exp(-1*(data - mean)**2 / (2*sigma*sigma))
-    
-def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
+
+def exponential(data, A, alpha,c):
+    return A * np.exp(alpha*(data-c))
+
+def linear(data, m, c):
+    return m * data + c
+
+###### PLOTTING DATA WITH A FIT ######
+def plot_data(x, y, xerr, yerr, data_colour, label):
+    with plt.style.context('ggplot'):
+        plt.errorbar(x, y, yerr, xerr, 'x',color=data_colour, label=label)
+
+def plot_best_fit( x, y, fit_func, weight, intial_guess,fit_colour, label):
+    fit, cov = curve_fit(fit_func, x, y, p0=intial_guess, sigma = weight)
+    with plt.style.context('ggplot'):
+        plt.plot(x, fit_func(x, *fit), color=fit_colour, label=label)
+    return fit, cov
+
+def plot_with_best_fit(
+    x,
+    y,
+    title,
+    data_label,
+    fit_label,
+    x_label,
+    y_label,
+    data_colour,
+    fit_colour,
+    fit_func,
+    weight = None, 
+    initial_guess = None,
+    xerr=0,
+    yerr=0,
+    beginfit=None,
+    endfit=None,
+    points=True,
+):
+    with plt.style.context('ggplot'):
+        # fig, ax = plt.subplots()
+        # if points == True:
+        if np.any(weight != None):
+            weight = weight[beginfit:endfit]
+        if points == True:
+            plot_data(x, y, xerr, yerr, data_colour, data_label)
+        fit,cov = plot_best_fit(x[beginfit:endfit], y[beginfit:endfit], fit_func, weight, initial_guess, fit_colour, fit_label)
+        # print(f'fit:{fit}')
+        plt.ticklabel_format(style='sci', scilimits=(0,0))
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.legend()
+        # plt.show()
+    return fit, cov
+
+###### PLOTTING A HISTOGRAM WITH A FIT ######
+def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650, log_plot=False):
     data_flat = np.ravel(data)
     hist_y, hist_edges = np.histogram(data, bins=nbins)
     hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
     hist_error = np.sqrt(hist_y)
-    hist_fit, hist_cov = curve_fit(gaussian, hist_centers, hist_y, p0)
+    hist_fit, hist_cov = curve_fit(fit_func, hist_centers, hist_y, p0)
     if plot == True:
         x_hist_fit = np.linspace(xlim1, xlim2, 1000)
         plt.plot(x_hist_fit, fit_func(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
@@ -34,7 +88,10 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
         plt.title(title)
         plt.legend()
         plt.show()
-    return hist_fit, hist_cov
+    if log_plot == False:
+        return hist_fit, hist_cov
+    elif log_plot == True:
+        return hist_fit, hist_cov, hist_centers, hist_y
 
 ###### IMAGE MASKING ######
 def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
@@ -127,7 +184,7 @@ def find_source(data):
     l = 50 # length to go either side of the source
     return max_val, locy, locx
 
-def source_radius(data, locx, locy, nbins = 4000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
+def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
     r = 0 
     locx = int(locx)
     locy = int(locy)
@@ -170,8 +227,103 @@ def source_radius(data, locx, locy, nbins = 4000, p0=[7e6,3420,18], plot=False, 
     r = np.max([r1, r2, r3, r4])
     return r, edge
 
+###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
+def detect_sources(data, mask):
+    # find the background in this section
+    background_fit, background_cov = histogram_fit(
+        data, 
+        nbins=4000, 
+        title='Background', 
+        fit_func=gaussian, 
+        plot=False)
 
+    background = background_fit[1]
+    # print(f'{background=}')
+    
+    stop = 0 # used to stop entire for loop if stuck on a point 
+    
+    # information we are getting from the searching
+    counter = 0
+    xvals = ['object x centers']
+    yvals = ['object y centers']
+    rs = []
 
+    total_flux =['total flux for aperture']
+    annular_back =['Finding annular background']
+    
+    # count the number of sources and get the photometery stuff out of it
+    for i in range(0, 10000000): # set a high number of sources
+        # find the source
+        max_val, ylocs, xlocs = find_source(data)
+        
+        # stop if got stuck or detecting too faint things
+        if stop==1 or max_val < background:
+            print('Counting Stopped Short')
+            break
+        
+        # print(f'{max_val}, {xlocs=}, {ylocs=}')
+        for x, y in zip(xlocs, ylocs):
+            # print(x,y)
+            r, local_edge = source_radius(data, x, y,nbins=500) 
+            # print(f'{r=}, {local_edge=}')
+            if max_val > local_edge:
+                if r <= 3: # not countign small objects that could be noise
+                    mask[y,x] = 0 # remove 1 random bright pixel
+                    data *= mask
+                    # print(f'found small object {x=}, {y=}')
+                    continue
+               
+                # check that not got stuck on one point
+                if x == xvals[-1] and y == yvals[-1]:
+                    print('stuck on a point')
+                    print(f'{i=}, {x=}, {y=}')
+                    stop=1
+                    break
+                
+                xvals.append(x)
+                yvals.append(y)
+                rs.append(r)
+                counter += 1 # counting the number of detected objects
+                print(f'{counter=}, {max_val=}')
+                
+                total_flux_each = [] # total flux for given aperture
+                back_flux_each = [] # total flux for background 
+                
+                for px in range(150):
+                    for py in range(150):
+                        # determining total flux for fixed aperture
+                        if remove_circle(px, py, x, y, r, mask, photometry=1) == True:
+                            total_flux_each.append(data[px,py])
+                        # determing the number of pixel for object 
+                        pixl_source = remove_circle(px, py, x, y, r, mask, pixl=1)
+                        # masking the object 
+                        remove_circle(px, py, x, y, r, mask) # make sure flip x and y here
+                
+                data *= mask
+                
+                for px in range(200):
+                    for py in range(200):
+                        if remove_circle(px, py, x, y, r+10, mask, photometry=1) == True:
+                            back_flux_each.append(data[px,py]) #adding flux for each background to list
+            
+            elif max_val <= local_edge:
+                print(f'object too faint, {i=}, {max_val=}')
+                mask[y, x] = 0
+                data *= mask
+                continue
+            
+            data *= mask
+            #finding total flux for set aperture
+            total_flux.append(np.sum(total_flux_each)) # flux of source with background contribution
+            
+            #determing background count per pixel 
+            back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) # denisty of background
+            #determing the local background by multiplying flux by pixels in aperture 
+            annular_back_each = back_count_pixl * pixl_source 
+            annular_back.append(annular_back_each)
+        
+        return counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back
+    
 
 
 

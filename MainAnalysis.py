@@ -113,94 +113,108 @@ print('removing bleeds is complete')
 
 start = time.perf_counter() # start time of the code
 
-data_count = data_no_bleed#[1400:1600, 1400:1600] # data using to count stars
-mask_count = mask_array#[1400:1600, 1400:1600] # array we will update to count stars
+data_count = data_no_bleed[500:1000, 500: 1000] #[1400:1600, 1400:1600] # data using to count stars
+mask_count = mask_array[500: 1000, 500:1000] #[1400:1600, 1400:1600] # array we will update to count stars
 
-# information we are getting from the searching
-counter = 0
-stop = 0 # used to stop entire for loop if stuck on a point 
-xvals = ['object x centers']
-yvals = ['object y centers']
-rs = []
+counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back = func.detect_sources(data_count, mask_count)
 
-total_flux =['total flux for aperture']
-local_back =['Finding local background']
-for i in range(0, 10000000): # testing by fixing the number of sources we want to count
-    # find the source
-    max_val, ylocs, xlocs = func.find_source(data_count)
+# ###### FIND THE BACKGROUND OF THE DATA YOU ARE LOOKING AT ######
+# background_fit, background_cov = func.histogram_fit(
+#     data_count, 
+#     nbins=4000, 
+#     title='Global Background', 
+#     fit_func=func.gaussian, 
+#     plot=True)
+
+# background = background_fit[1]
+# print(f'{background=}')
+
+# # information we are getting from the searching
+# counter = 0
+# stop = 0 # used to stop entire for loop if stuck on a point 
+# xvals = ['object x centers']
+# yvals = ['object y centers']
+# rs = []
+
+# total_flux =['total flux for aperture']
+# local_back =['Finding local background']
+# for i in range(0, 10000000): # testing by fixing the number of sources we want to count
+#     # find the source
+#     max_val, ylocs, xlocs = func.find_source(data_count)
     
-    # stop if got stuck or detecting too faint things
-    if stop==1 or max_val < 3400:
-        print('Counting Stopped Short')
-        break
+#     # stop if got stuck or detecting too faint things
+#     if stop==1 or max_val < background:
+#         print('Counting Stopped Short')
+#         break
     
-    # print(f'{max_val}, {xlocs=}, {ylocs=}')
-    for x, y in zip(xlocs, ylocs):
-        # print(x,y)
-        r, local_edge = func.source_radius(data_count, x, y,nbins=500) 
-        # print(f'{r=}, {local_edge=}')
-        if max_val > local_edge:
-            if r <= 3: # not countign small objects that could be noise
-                mask_count[y,x] = 0 # remove 1 random bright pixel
-                data_count *= mask_count
-                # print(f'found small object {x=}, {y=}')
-                continue
+#     # print(f'{max_val}, {xlocs=}, {ylocs=}')
+#     for x, y in zip(xlocs, ylocs):
+#         # print(x,y)
+#         r, local_edge = func.source_radius(data_count, x, y,nbins=500) 
+#         # print(f'{r=}, {local_edge=}')
+#         if max_val > local_edge:
+#             if r <= 3: # not countign small objects that could be noise
+#                 mask_count[y,x] = 0 # remove 1 random bright pixel
+#                 data_count *= mask_count
+#                 # print(f'found small object {x=}, {y=}')
+#                 continue
            
-            # check that not got stuck on one point
-            if x == xvals[-1] and y == yvals[-1]:
-                print('stuck on a point')
-                print(f'{i=}, {x=}, {y=}')
-                stop=1
-                break
+#             # check that not got stuck on one point
+#             if x == xvals[-1] and y == yvals[-1]:
+#                 print('stuck on a point')
+#                 print(f'{i=}, {x=}, {y=}')
+#                 stop=1
+#                 break
             
-            xvals.append(x)
-            yvals.append(y)
-            rs.append(r)
-            counter += 1 # counting the number of detected objects
-            print(f'{counter=}, {max_val=}')
+#             xvals.append(x)
+#             yvals.append(y)
+#             rs.append(r)
+#             counter += 1 # counting the number of detected objects
+#             print(f'{counter=}, {max_val=}')
             
-            total_flux_each = [] # total flux for given aperture
-            back_flux_each = [] # total flux for background 
+#             total_flux_each = [] # total flux for given aperture
+#             back_flux_each = [] # total flux for background 
             
-            for px in range(150):
-                for py in range(150):
-                    # determining total flux for fixed aperture
-                    if func.remove_circle(px, py, x, y, r, mask_count, photometry=1) == True:
-                        total_flux_each.append(data_count[px,py])
-                    # determing the number of pixel for object 
-                    pixl_source = func.remove_circle(px, py, x, y, r+10, mask_count, pixl=1)
-                    # masking the object 
-                    func.remove_circle(px, py, x, y, r, mask_count) # make sure flip x and y here
+#             for px in range(150):
+#                 for py in range(150):
+#                     # determining total flux for fixed aperture
+#                     if func.remove_circle(px, py, x, y, r, mask_count, photometry=1) == True:
+#                         total_flux_each.append(data_count[px,py])
+#                     # determing the number of pixel for object 
+#                     pixl_source = func.remove_circle(px, py, x, y, r+10, mask_count, pixl=1)
+#                     # masking the object 
+#                     func.remove_circle(px, py, x, y, r, mask_count) # make sure flip x and y here
             
-            data_count *= mask_count
+#             data_count *= mask_count
             
-            for px in range(200):
-                for py in range(200):
-                    if func.remove_circle(px, py, x, y, r+10, mask_count, photometry=1) == True:
-                        back_flux_each.append(data_count[px,py]) #adding flux for each background to list
+#             for px in range(200):
+#                 for py in range(200):
+#                     if func.remove_circle(px, py, x, y, r+10, mask_count, photometry=1) == True:
+#                         back_flux_each.append(data_count[px,py]) #adding flux for each background to list
         
-        elif max_val <= local_edge:
-            print(f'object too faint, {i=}, {max_val=}')
-            mask_count[y-1:y+1,x-1:x+1] = 0
-            data_count *= mask_count
-            continue
+#         elif max_val <= local_edge:
+#             print(f'object too faint, {i=}, {max_val=}')
+#             mask_count[y, x] = 0
+#             data_count *= mask_count
+#             continue
         
-        data_count *= mask_count
-        #finding total flux for set aperture
-        total_flux.append(np.sum(total_flux_each))
+#         data_count *= mask_count
+#         #finding total flux for set aperture
+#         total_flux.append(np.sum(total_flux_each))
         
-        #determing background count per pixel 
-        back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
-        #determing the local background by multiplying flux by pixels in aperture 
-        local_back_each = back_count_pixl * pixl_source 
-        local_back.append(local_back_each)
+#         #determing background count per pixel 
+#         back_count_pixl = np.sum(back_flux_each)/len(back_flux_each)
+#         #determing the local background by multiplying flux by pixels in aperture 
+#         local_back_each = back_count_pixl * pixl_source 
+#         local_back.append(local_back_each)
+        
 #%%
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print('Source Counting is Finished')
 
 # determing the source flux 
-source_flux = np.array(total_flux[1:]) - np.array(local_back[1:])
+source_flux = np.array(total_flux[1:]) - np.array(annular_back[1:])
 
 end = time.perf_counter()
 
@@ -218,8 +232,12 @@ inst_mag = -2.5 * np.log10(source_flux)
 
 # converting instrumental arguments into calibrated magnitudes 
 mag = point_0 + inst_mag # point_0 defined at the top 
+# for point in mag:
+#     if mag >= 13:
+          
 # uncertainty in magnitude 
-plt.hist(mag,bins=200)
+mag_fit, mag_cov, mag_centers, mag_freq = func.histogram_fit(mag, nbins=8, fit_func=func.exponential, p0=[1,1.1,8.4], plot=True, xlim1=0, xlim2=15, log_plot=True)
+# plt.hist(mag,bins=15)
 plt.show()
 
 # =============================================================================
@@ -231,34 +249,35 @@ limit = 3631e-26 # AB system magntiutde
 pixl_deg = np.pi / (0.258 * 648000) # conversion factor from pixl to deg 
 
 area = np.shape(data)[0] * np.shape(data)[1] * pixl_deg * pixl_deg # finding area of whole image
-# range of magnitudes considered 
 
-mag_range = np.arange(9,np.max(mag),step=0.1)
+##### PLOTTING THE LOGARITHM ######
+N = [] # number of sources above a given magnitude 
+for mag_cutoff in mag_centers: # take the histogram points to be the cut off
+    number = 0
+    for each_mag in mag:
+        if each_mag < mag_cutoff:
+            number += 1
+    N.append(number)
 
-# determining number of objects with brightness less than given magnitude
-n_m = [] # number of objects
-for mag_max in  mag_range: # maximum magnitude
-    count_obj_greater = 0 # number of objects with magnitude greater than each mag
-    for each_mag  in mag: # magnitude of each object 
-        if each_mag > mag_max: 
-            count_obj_greater += 1 
-    n_m.append(count_obj_greater) 
-        
-N_m = np.array(n_m)/area # density of number of objects
+N_norm = np.array(N)/area # changing to number per degree
+log_N = np.log10(N_norm)
 
-# taking the log of the magnitude 
-log_N_m = np.log10(N_m)
+# plot the data
+log_fit, log_cov = func.plot_with_best_fit(
+    x = mag_centers, 
+    y = log_N, 
+    title = '', 
+    data_label = 'Collected Data', 
+    fit_label = 'Linear Fit', 
+    x_label = 'magnitude', 
+    y_label = 'log$_{10}$(<m)', 
+    data_colour = 'red', 
+    fit_colour = 'black', 
+    fit_func = func.linear)
+plt.plot(mag_centers, log_N, 'x')
 
-# fitting to find gradient 
-pars,cov = np.polyfit(mag_range,log_N_m,1,cov=1)
-print('Gradient %.3e +/- %.3e' % (pars[0],cov[0,0]))
+print(f'gradient ={ log_fit[0]:.3f}')
 
-plt.plot(mag_range,log_N_m,'x')
-plt.plot(mag_range,pars[0]*mag_range + pars[1],color='black')
-plt.xlabel('m')
-plt.ylabel('log(N(m))')
-plt.grid()
-plt.show()
 
 
 
