@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Dec  6 10:14:11 2022
-
 @author: eviebrass
 """
 import matplotlib.pyplot as plt
@@ -74,6 +73,14 @@ def plot_with_best_fit(
 
 ###### PLOTTING A HISTOGRAM WITH A FIT ######
 def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650, log_plot=False):
+# =============================================================================
+# Plotting histogram to determine gaussian fit of flux hist 
+# nbins is the number of bins  
+# fit_func is the gaussian fucntion 
+# plot shows image is true
+# x_lims1,2 are x-axis range
+# log_plot determines retuns hist with uncertainty if true
+# ===========================================================
     data_flat = np.ravel(data)
     hist_y, hist_edges = np.histogram(data, bins=nbins)
     hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
@@ -95,6 +102,15 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
 
 ###### IMAGE MASKING ######
 def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0, pixl=0):
+# =============================================================================
+# Masking objects assuming circular shapes 
+# x_val and y_val are all the coordiante values in image 
+# (x_centre,y_centre) are centre coordinates for object 
+# r is the radius of the objects  
+# mask_array is the most up to date mask array 
+# photometry obtains the flux of each pixel in aperture if true
+# pixl counts the number of pixels in given aperture if true 
+# ===========================================================
     # print(f'{x_center=}, {y_center=}')
     l = r + 50
     x = x_val + x_center - l # the pixel number in the context of image
@@ -162,6 +178,14 @@ def remove_circle(x_val, y_val, x_center, y_center, r, mask_array, photometry=0,
             return True
          
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
+# =============================================================================
+# Masking triangular shapes due to bleeding  
+# x_val and y_val are arrays of x and y coordinates in image
+# x1, x2, x3:  x coordinates for corners
+# y1, y2, y3 : y coordinates for corners
+# mask_array is the updated mask array 
+# ===========================================================
+
     # gradients of each side of the triangle
     m1 = (x3 - x1) / (y3 - y1)
     m2 = (x3 - x2) / (y3 - y2)
@@ -172,10 +196,21 @@ def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
         mask_array[x_val, y_val] = 0
 
 def remove_rect(x1, x2, y1, y2, mask_array):
+# =============================================================================
+# Masking rectangular shapes due to bleeding  
+# x1 and x2 are the x coordinates for rectangular edges 
+# y1 and y2 are the y coordinates for rectangular edges 
+# mask_array is the updated mask array 
+# ===========================================================
     mask_array[y1:y2, x1:x2] = 0
     
 ###### DETECTING SOURCES ######
 def find_source(data):
+# =============================================================================
+# Detecting the brightest pixel and therefore centre of source 
+# Input : matrix of the image 
+# Output: maixmum flux value , location of object centre 
+# =============================================================================
     max_val = np.max(data)
     locy, locx = np.where(data == max_val)
     # flip x and y because how np.where works
@@ -185,6 +220,16 @@ def find_source(data):
     return max_val, locy, locx
 
 def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
+# =============================================================================
+# Determines the source radius 
+### Input : 
+# Data is the matrix of the image 
+# Centre source (locx,locy)
+# nbinsis the number of bins used in histogram that dermines local background
+# p0 are the initial guesses for the gaussian fit of the count hist 
+# [xlim1, xlim2] is the range of x_values in hist 
+### Output: radius of object, the value 
+# =============================================================================
     r = 0 
     locx = int(locx)
     locy = int(locy)
@@ -229,6 +274,14 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
 
 ###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
 def detect_sources(data, mask):
+# =============================================================================
+# Detects the objects and masks them. Also returns flux of background and source 
+# Data is the matrix of the image 
+# mask is the mask array 
+# Output: number of objects, location, radius, total flux of source, 
+# annular/background flux per pixel, total flux of source - background 
+# =============================================================================
+    
     # find the background in this section
     background_fit, background_cov = histogram_fit(
         data, 
@@ -247,27 +300,28 @@ def detect_sources(data, mask):
     xvals = ['object x centers']
     yvals = ['object y centers']
     rs = []
-
-    total_flux =['total flux for aperture']
-    annular_back =['Finding annular background']
+    
+    total_flux =['Total flux of object']
+    annular_back =['Finding background of object ']
     
     # count the number of sources and get the photometery stuff out of it
-    for i in range(0, 10000000): # set a high number of sources
+    for i in range(0, 50): # set a high number of sources
         # find the source
         max_val, ylocs, xlocs = find_source(data)
         
-        # stop if got stuck or detecting too faint things
+        # stop if got stuck or detecting objects that are too faint 
         if stop==1 or max_val < background:
             print('Counting Stopped Short')
             break
         
         # print(f'{max_val}, {xlocs=}, {ylocs=}')
+        
         for x, y in zip(xlocs, ylocs):
             # print(x,y)
             r, local_edge = source_radius(data, x, y,nbins=500) 
             # print(f'{r=}, {local_edge=}')
-            if max_val > local_edge:
-                if r <= 3: # not countign small objects that could be noise
+            if max_val > local_edge: #ensures background is not considered as source
+                if r <= 3: # not counting small objects that could be noise
                     mask[y,x] = 0 # remove 1 random bright pixel
                     data *= mask
                     # print(f'found small object {x=}, {y=}')
@@ -286,25 +340,26 @@ def detect_sources(data, mask):
                 counter += 1 # counting the number of detected objects
                 print(f'{counter=}, {max_val=}')
                 
-                total_flux_each = [] # total flux for given aperture
-                back_flux_each = [] # total flux for background 
+                source_flux_each = [] # flux of each pixel in  source 
+                back_flux_each = [] # flux of each pixel in annular region 
                 
                 for px in range(150):
                     for py in range(150):
-                        # determining total flux for fixed aperture
+                        # determining total flux of the object 
                         if remove_circle(px, py, x, y, r, mask, photometry=1) == True:
-                            total_flux_each.append(data[px,py])
-                        # determing the number of pixel for object 
+                            source_flux_each.append(data[px,py])
+                        # determing the number of pixel in object 
                         pixl_source = remove_circle(px, py, x, y, r, mask, pixl=1)
                         # masking the object 
-                        remove_circle(px, py, x, y, r, mask) # make sure flip x and y here
+                        remove_circle(px, py, x, y, r, mask) 
                 
                 data *= mask
                 
                 for px in range(200):
                     for py in range(200):
-                        if remove_circle(px, py, x, y, r+10, mask, photometry=1) == True:
-                            back_flux_each.append(data[px,py]) #adding flux for each background to list
+                        # determining the flux of annualar region around object 
+                        if remove_circle(px, py, x, y, r+10, mask, photometry=1 == True):
+                            back_flux_each.append(data[px,py]) #adding flux for each pixel in background to list
             
             elif max_val <= local_edge:
                 print(f'object too faint, {i=}, {max_val=}')
@@ -312,29 +367,20 @@ def detect_sources(data, mask):
                 data *= mask
                 continue
             
-            data *= mask
-            #finding total flux for set aperture
-            total_flux.append(np.sum(total_flux_each)) # flux of source with background contribution
+            #data *= mask
             
-            #determing background count per pixel 
-            back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) # denisty of background
-            #determing the local background by multiplying flux by pixels in aperture 
+            #summing flux of each pixel in object to find the flux for each object 
+            total_flux.append(np.sum(source_flux_each)) 
+            
+            #determing background flux per pixel in background 
+            back_count_pixl = np.sum(back_flux_each)/len(back_flux_each) 
+            #determing the background in source by multiplying background flux per 
+            # pixels by the number of pixels in the objects 
             annular_back_each = back_count_pixl * pixl_source 
+            #adding the total background contribution for each source to list for all objects 
             annular_back.append(annular_back_each)
         
-        return counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back
-    
-
-
-
-
-
-
-
-
-
-
-
+    return counter, xvals, yvals, rs, total_flux, back_count_pixl, annular_back
 
 
 
