@@ -36,20 +36,20 @@ n_objects = 10 # number of objects -1
 # generating random radii array
 size = 500
 
-random.seed(20)
+random.seed(5)
 loc_ran = [[random.randint(0, size) for i in range(n_objects)] for j in range(2)] # creating the centers of the code
 test_obj = []
 
 for i in range(n_objects): # same as i value
     x_current = loc_ran[0][i]
     y_current = loc_ran[1][i]
-    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=10000)
+    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=1000000)
     test_obj.append(obj_n)
 
 obj = sum(test_obj) # creating an object 
 
 # add noise to the background of the test
-mu_noise, sigma_noise = 8, 2
+mu_noise, sigma_noise = 3420, 18
 noise = np.random.normal(mu_noise, sigma_noise, size=(size,size))
 obj_final = obj + noise
 

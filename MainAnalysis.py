@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Nov 25 10:20:04 2022
+
 @author: eviebrass
 """
 import numpy as np
@@ -9,8 +10,7 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import pickle
 from scipy.optimize import curve_fit
-from astropy.io import ascii # for saving catalogue as acsii fie
-from astropy.table import Table
+import CatalogueSaving as s
 import FunctionsFile as func
 import csv
 
@@ -63,7 +63,9 @@ global_background_fit, global_background_cov = func.histogram_fit(
     fit_func=func.gaussian, 
     plot=True)
 
+global_A = global_background_fit[0]
 global_background = global_background_fit[1]
+global_sigma = global_background_fit[2]
 
 #%%
 ###### IMAGE MASKING ######
@@ -75,11 +77,11 @@ mask_array = np.ones(np.shape(data)) # initially all 1
 for px in range(600):
     for py in range(600):
         # remove circle parts
-        func.remove_circle(px, py, 1220, 3000, 240, mask_array)
-        func.remove_circle(px, py, 558, 3105, 45, mask_array)
-        func.remove_circle(px, py, 757, 2555, 40, mask_array)
-        func.remove_circle(px, py, 687, 2066, 45, mask_array)
-        func.remove_circle(px, py, 1917, 3540, 30, mask_array)
+        func.remove_circle(px, py, 1220, 3000, 240, data, mask_array)
+        func.remove_circle(px, py, 558, 3105, 45, data, mask_array)
+        func.remove_circle(px, py, 757, 2555, 40, data, mask_array)
+        func.remove_circle(px, py, 687, 2066, 45, data, mask_array)
+        func.remove_circle(px, py, 1917, 3540, 30, data, mask_array)
 # remove triangular parts
 for px in range(300):
     for py in range(1100, 1350):
@@ -113,17 +115,103 @@ print('removing bleeds is complete')
 
 start = time.perf_counter() # start time of the code
 
-data_count = data_no_bleed[500:1000, 500: 1000] #[1400:1600, 1400:1600] # data using to count stars
-mask_count = mask_array[500: 1000, 500:1000] #[1400:1600, 1400:1600] # array we will update to count stars
+data_count=data_no_bleed
+mask_count=mask_array
 
-#obtaining soruce data for catalogue 
+data_count1, mask_count1 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=0, y2=1000)
+data_count2, mask_count2 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=1000, y2=2000)
+data_count3, mask_count3 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=2000, y2=3000)
+data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=3000, y2=-1)
 
-counter, xvals, yvals, rs, total_flux, annular_back = func.detect_sources(data_count, mask_count)
+data_count5, mask_count5 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=0, y2=1000)
+data_count6, mask_count6 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=1000, y2=2000)
+data_count7, mask_count7 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=2000, y2=3000)
+data_count8, mask_count8 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=3000, y2=-1)
 
+data_count9, mask_count9 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=0, y2=1000)
+data_count10, mask_count10 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=1000, y2=2000)
+data_count11, mask_count11 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=2000, y2=3000)
+data_count12, mask_count12 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=3000, y2=-1)
+
+# data_count13, mask_count13 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=0, y2=1000)
+# data_count14, mask_count14 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=1000, y2=2000)
+# data_count15, mask_count15 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=2000, y2=3000)
+# data_count16, mask_count16 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=3000, y2=-1)
+
+counter = 0
+counter1, source_flux1 = func.detect_sources(data_count1, mask_count1)
+counter += counter1
+print('section 1 complete')
+# counter2, source_flux2 = func.detect_sources(data_count2, mask_count2)
+# counter += counter2
+# print('section 2 complete')
+# counter3, source_flux3 = func.detect_sources(data_count3, mask_count3)
+# counter += counter3
+# print('section 3 complete')
+# counter4, source_flux4 = func.detect_sources(data_count4, mask_count4)
+# counter += counter4
+# print('section 4 complete')
+# counter5, source_flux5 = func.detect_sources(data_count5, mask_count5)
+# counter += counter5
+# print('section 5 complete')
+# counter6, source_flux6 = func.detect_sources(data_count6, mask_count6)
+# counter += counter6
+# print('section 6 complete')
+# counter7, source_flux7 = func.detect_sources(data_count7, mask_count7)
+# counter += counter7
+# print('section 7 complete')
+# counter8, source_flux8 = func.detect_sources(data_count8, mask_count8)
+# counter += counter8
+# print('section 8 complete')
+# counter9, source_flux9 = func.detect_sources(data_count9, mask_count9)
+# counter += counter9
+# print('section 9 complete')
+# counter10, source_flux10 = func.detect_sources(data_count10, mask_count10)
+# counter += counter10
+# print('section 10 complete')
+# counter11, source_flux11 = func.detect_sources(data_count11, mask_count11)
+# counter += counter11
+# print('section 11 complete')
+# counter12, source_flux12 = func.detect_sources(data_count12, mask_count12)
+# counter += counter12
+# print('section 12 complete')
+
+# counter, source_flux = func.detect_sources(data_count, mask_count)
+
+#%
+# combining the taken data sets
+data_count = np.concatenate(
+    (data_count1,
+      # data_count2,
+      # data_count3,
+      # data_count4,
+      # data_count5,
+      # data_count6,
+      # data_count7,
+      # data_count8,
+      # data_count9,
+      # data_count10,
+      # data_count11
+      ))
 
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print('Source Counting is Finished')
+
+source_flux = np.concatenate(
+    (source_flux1,
+     # source_flux2,
+     # source_flux3, 
+     # source_flux4, 
+     # source_flux5
+     # source_flux6, 
+     # source_flux7,
+     # source_flux8,
+     # source_flux9,
+     # source_flux10,
+     # source_flux11
+      ), 
+    axis=None)
 
 end = time.perf_counter()
 
@@ -144,17 +232,14 @@ data = {'Position x': xvals[1:],
 # writing a file with data 
 ascii.write(data,'catalogue_ap=100.csv',format='csv',overwrite=1)
 
+#reading the data 
+x_val,y_val, r, total_flux,source_back = np.loadtxt('catalogue_ap=5.csv', delimiter= ',', skiprows = 2 , unpack=1)
+
 #%%
 # =============================================================================
 # 5.5 Calibrating the fluxes. 
 # Converting instrumental counts to source magnitude
 # =============================================================================
-#reading the data 
-x_val,y_val, r, total_flux,source_back = np.loadtxt('catalogue_ap=5.csv', delimiter= ',', skiprows = 2 , unpack=1)
-
-# determing the source flux 
-source_flux = total_flux - source_back
-print(source_flux)
 
 # converting counts into instrumental magnitude 
 inst_mag = -2.5 * np.log10(source_flux)
@@ -165,7 +250,7 @@ mag = point_0 + inst_mag # point_0 defined at the top
 #     if mag >= 13:
           
 # uncertainty in magnitude 
-mag_fit, mag_cov, mag_centers, mag_freq = func.histogram_fit(mag, nbins=8, fit_func=func.exponential, p0=[1,1.1,8.4], plot=True, xlim1=0, xlim2=15, log_plot=True)
+mag_fit, mag_cov, mag_centers, mag_freq = func.histogram_fit(mag, nbins=10, fit_func=func.exponential, p0=[1,1.1,8.4], plot=True, xlim1=0, xlim2=15, log_plot=True)
 # plt.hist(mag,bins=15)
 plt.show()
 
@@ -199,10 +284,23 @@ log_fit, log_cov = func.plot_with_best_fit(
     data_label = 'Collected Data', 
     fit_label = 'Linear Fit', 
     x_label = 'magnitude', 
-    y_label = 'log$_{10}$(N(m))', 
+    y_label = 'log$_{10}$(<m)', 
     data_colour = 'red', 
     fit_colour = 'black', 
     fit_func = func.linear)
 plt.plot(mag_centers, log_N, 'x')
 
-print(f'gradient ={ log_fit[0]:.3f}')
+print(f'gradient ={log_fit[0]:.3f}')
+
+
+
+
+
+
+
+
+
+
+
+
+
