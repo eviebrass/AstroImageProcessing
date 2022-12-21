@@ -179,9 +179,7 @@ def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=41
         if photometry == 0:
             reduced_mask[y_val, x_val] = 0
         elif photometry == 1:
-            print('value from function')
-            print(float(reduced_data[y_val, x_val]))
-            return float(reduced_data[y_val, x_val])
+            return reduced_data[y_val, x_val]
          
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     '''
@@ -220,8 +218,6 @@ def find_source(data):
     locy, locx = np.where(data == max_val)
     # flip x and y because how np.where works
     # matrix i=y, j=x
-    r = 0
-    l = 50 # length to go either side of the source
     return max_val, locy, locx
 
 def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
@@ -248,7 +244,7 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
     background_fit, background_cov = histogram_fit(data_local, nbins, p0=p0, plot=plot, xlim1=xlim1, xlim2=xlim2)
     background = background_fit[1]
     sigma = background_fit[2]
-    edge = background + 2 * sigma # anything below this is defined as background
+    edge = background + 3 * sigma # anything below this is defined as background
    
     # find the radius of the detected star
     data_scan1 = data[locy:locy+30, locx] # limit the region that we are searching
@@ -279,11 +275,6 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
 
 ###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
 def detect_sources(input_data, mask):
-    '''
-    Detecting the brightest pixel and therefore centre of source 
-    Input : matrix of the image 
-    Output: maximum flux value , location of object centre 
-    '''
     y_len = np.shape(input_data)[0]
     x_len = np.shape(input_data)[1]
     # find the background in this section
@@ -315,11 +306,11 @@ def detect_sources(input_data, mask):
         # print(i)
         # find the source
         max_val, ylocs, xlocs = find_source(input_data)
-        print(f'{max_val=}, {ylocs=}, {xlocs=}')
+        # print(f'{max_val=}, {ylocs=}, {xlocs=}')
         
         # stop if got stuck or detecting too faint things
-        if stop==1 or max_val < background + 2 * sigma:
-            print(f'Counting Stopped Short at {i}')
+        if stop==1 or max_val < background + 3 * sigma:
+            print(f'Counting Stopped Short at {i=}, {counter=}')
             break
         
         # print(f'{max_val=}')
@@ -346,34 +337,30 @@ def detect_sources(input_data, mask):
                     stop=1
                     break
                 
-                xvals.append(x)
-                yvals.append(y)
-                rs.append(r)
-                counter += 1 # counting the number of detected objects
-                # print(f'{counter=}, {max_val=}')
-                
                 # go through each pixel in reduceed box
                 for px in range(150):
                     for py in range(150):
                         # determining total flux for fixed aperture
-                        # print('total')
+                        # print(f'{px=}, {py=}')
                         current_total_flux = remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
-                        # print(type(current_total_flux), current_total_flux)
-                        total_flux_each.append(current_total_flux)
+                        if current_total_flux != None:
+                            # print(current_total_flux)
+                            total_flux_each.append(current_total_flux)
                         # remove the source now obtained information
                         remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len)
                 # print(f'normal object_masked')
                 input_data *= mask
                 
-                see_image(input_data)
+                # see_image(input_data)
                 
                 # go through each pixel now the object has been removed
-                for px in range(200):
-                    for py in range(200):
-                        # print('background')
-                        current_background_flux = remove_circle(px, py, x, y, r+20, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
-                        # print(type(current_background_flux), current_background_flux)
-                        back_flux_each.append(current_background_flux)
+                for px2 in range(200):
+                    for py2 in range(200):
+                        # print(f'{px2=}, {py2=}')
+                        current_background_flux = remove_circle(px2, py2, x, y, r+5, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
+                        if current_background_flux != None:
+                            # print(current_background_flux)
+                            back_flux_each.append(current_background_flux)
                         
             elif max_val <= local_edge:
                 # print(f'object too faint, {i=}, {max_val=}')
@@ -397,17 +384,18 @@ def detect_sources(input_data, mask):
             
             source_flux_each = sum(total_flux_each) - back_contrib_each
             if source_flux_each < 0:
-                print('NEGATIVE SOURCE FLUX', i)
-                plt.hist(total_flux_each, alpha=0.4, label = 'source')
-                plt.hist(back_flux_each, alpha=0.4, label = 'background')
-                plt.legend()
-                plt.show()
+                # print('NEGATIVE SOURCE FLUX')
                 # print(f'{i=}, {x=}, {y=}, {r=}')
                 # print(f'{annular_no_pixls=}, {back_no_pixls=}, {source_no_pixls=}')
-                # print(f'{back_flux_each=}, {back_density=}, {total_flux_each=}, {back_contrib_each=}, {source_flux_each=} ')
-                
-            source_flux.append(source_flux_each)
-            # print(f'{back_contrib_each=}, {total_flux_each=}, {source_flux_each=}')   
+                # print(f'{sum(back_flux_each)=}, {back_density=}, {sum(total_flux_each)=}, {back_contrib_each=}, {source_flux_each=} ')
+                continue
+            
+            else: # we don't append negative fluxes since this means that we have found something other than a source
+                source_flux.append(source_flux_each)
+                xvals.append(x)
+                yvals.append(y)
+                rs.append(r)
+                counter += 1 # counting the number of detected objects  
         
     return counter, source_flux
 

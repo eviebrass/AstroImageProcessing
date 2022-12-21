@@ -82,6 +82,7 @@ for px in range(600):
         func.remove_circle(px, py, 757, 2555, 40, data, mask_array)
         func.remove_circle(px, py, 687, 2066, 45, data, mask_array)
         func.remove_circle(px, py, 1917, 3540, 30, data, mask_array)
+        func.remove_circle(px, py, 1872, 1203, 30, data, mask_array)
 # remove triangular parts
 for px in range(300):
     for py in range(1100, 1350):
@@ -118,92 +119,62 @@ start = time.perf_counter() # start time of the code
 data_count=data_no_bleed
 mask_count=mask_array
 
-data_count1, mask_count1 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=0, y2=1000)
-data_count2, mask_count2 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=1000, y2=2000)
-data_count3, mask_count3 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=2000, y2=3000)
-data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=500, y1=3000, y2=-1)
+# split these up by eye into sections that appear to have the same background
+data_count1, mask_count1 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=0, y2=2400)
+data_count2, mask_count2 = func.reduce_data(data_no_bleed, mask_array, x1=1300, x2=-1, y1=0, y2=900)
+data_count3, mask_count3 = func.reduce_data(data_no_bleed, mask_array, x1=1300, x2=-1, y1=900, y2=3650)
+data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=0, y2=3650)
+data_count5, mask_count5 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=-1, y1=3650, y2=-1)
 
-data_count5, mask_count5 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=0, y2=1000)
-data_count6, mask_count6 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=1000, y2=2000)
-data_count7, mask_count7 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=2000, y2=3000)
-data_count8, mask_count8 = func.reduce_data(data_no_bleed, mask_array, x1=500, x2=1000, y1=3000, y2=-1)
-
-data_count9, mask_count9 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=0, y2=1000)
-data_count10, mask_count10 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=1000, y2=2000)
-data_count11, mask_count11 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=2000, y2=3000)
-data_count12, mask_count12 = func.reduce_data(data_no_bleed, mask_array, x1=1000, x2=1500, y1=3000, y2=-1)
-
-# data_count13, mask_count13 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=0, y2=1000)
-# data_count14, mask_count14 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=1000, y2=2000)
-# data_count15, mask_count15 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=2000, y2=3000)
-# data_count16, mask_count16 = func.reduce_data(data_no_bleed, mask_array, x1=1500, x2=-1, y1=3000, y2=-1)
 
 counter = 0
 counter1, source_flux1 = func.detect_sources(data_count1, mask_count1)
 counter += counter1
-print('section 1 complete')
-# counter2, source_flux2 = func.detect_sources(data_count2, mask_count2)
-# counter += counter2
-# print('section 2 complete')
-# counter3, source_flux3 = func.detect_sources(data_count3, mask_count3)
-# counter += counter3
-# print('section 3 complete')
-# counter4, source_flux4 = func.detect_sources(data_count4, mask_count4)
-# counter += counter4
-# print('section 4 complete')
-# counter5, source_flux5 = func.detect_sources(data_count5, mask_count5)
-# counter += counter5
-# print('section 5 complete')
-# counter6, source_flux6 = func.detect_sources(data_count6, mask_count6)
-# counter += counter6
-# print('section 6 complete')
-# counter7, source_flux7 = func.detect_sources(data_count7, mask_count7)
-# counter += counter7
-# print('section 7 complete')
-# counter8, source_flux8 = func.detect_sources(data_count8, mask_count8)
-# counter += counter8
-# print('section 8 complete')
-# counter9, source_flux9 = func.detect_sources(data_count9, mask_count9)
-# counter += counter9
-# print('section 9 complete')
-# counter10, source_flux10 = func.detect_sources(data_count10, mask_count10)
-# counter += counter10
-# print('section 10 complete')
-# counter11, source_flux11 = func.detect_sources(data_count11, mask_count11)
-# counter += counter11
-# print('section 11 complete')
-# counter12, source_flux12 = func.detect_sources(data_count12, mask_count12)
-# counter += counter12
-# print('section 12 complete')
+end1 = time.perf_counter()
+print(f'section 1 complete. Time so far {(end1-start)/60} minutes')
+counter2, source_flux2 = func.detect_sources(data_count2, mask_count2)
+counter += counter2
+end2 = time.perf_counter()
+print(f'section 2 complete. Time so far {(end2-start)/60} minutes')
+counter3, source_flux3 = func.detect_sources(data_count3, mask_count3)
+counter += counter3
+end3 = time.perf_counter()
+print(f'section 3 complete. Time so far {(end3-start)/60} minutes')
+counter4, source_flux4 = func.detect_sources(data_count4, mask_count4)
+counter += counter4
+end4 = time.perf_counter()
+print(f'section 4 complete. Time so far {(end4-start)/60} minutes')
+counter5, source_flux5 = func.detect_sources(data_count5, mask_count5)
+counter += counter5
 
 # counter, source_flux = func.detect_sources(data_count, mask_count)
 
 #%
 # combining the taken data sets
-data_count = np.concatenate(
-    (data_count1,
-      # data_count2,
-      # data_count3,
-      # data_count4,
-      # data_count5,
-      # data_count6,
-      # data_count7,
-      # data_count8,
-      # data_count9,
-      # data_count10,
-      # data_count11
-      ))
+# data_count = np.concatenate(
+#     (data_count1,
+#      data_count2,
+#      data_count3,
+#      data_count4,
+#      data_count5,
+     # data_count6,
+    # data_count7,
+    # data_count8,
+    # data_count9,
+    # data_count10,
+    # data_count11
+      # ))
 
-fits.writeto('removing_objects.fits', data_count, overwrite=True)
+# fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print('Source Counting is Finished')
 
 source_flux = np.concatenate(
     (source_flux1,
-     # source_flux2,
-     # source_flux3, 
-     # source_flux4, 
-     # source_flux5
+     source_flux2,
+     source_flux3, 
+     source_flux4, 
+     source_flux5
      # source_flux6, 
      # source_flux7,
      # source_flux8,
@@ -224,16 +195,16 @@ print(f'{total_time = } minutes')
 data = {'Position x': xvals[1:],
         'Position y': yvals[1:],
          'Radius': rs[1:],
-         'Counts Source': total_flux[1:] ,
+         'Counts Source': total_flux[1:],
          #'Un counts': un_source_flux,
          'Source Background': annular_back[1:]}
          #'Source back un': annular_back_un,}
 
 # writing a file with data 
-ascii.write(data,'catalogue_ap=100.csv',format='csv',overwrite=1)
+ascii.write(data, 'catalogue_ap=100.csv', format='csv', overwrite=1)
 
 #reading the data 
-x_val,y_val, r, total_flux,source_back = np.loadtxt('catalogue_ap=5.csv', delimiter= ',', skiprows = 2 , unpack=1)
+x_val, y_val, r, total_flux, source_back = np.loadtxt('catalogue_ap=5.csv', delimiter=',', skiprows=2, unpack=1)
 
 #%%
 # =============================================================================

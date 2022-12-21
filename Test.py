@@ -43,7 +43,7 @@ test_obj = []
 for i in range(n_objects): # same as i value
     x_current = loc_ran[0][i]
     y_current = loc_ran[1][i]
-    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=1000000)
+    obj_n = gauss_2d(size, x_current, y_current, sigma=1, A=100000)
     test_obj.append(obj_n)
 
 obj = sum(test_obj) # creating an object 
