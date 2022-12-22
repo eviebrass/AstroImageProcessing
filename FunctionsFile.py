@@ -8,6 +8,10 @@ Created on Tue Dec  6 10:14:11 2022
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import numpy as np
+# imports for checking progress
+import time as time
+from progress.bar import IncrementalBar
+from progress.colors import bold
 
 ###### SEE THE IMAGE WE ARE LOOKING AT ######
 def see_image(data):
@@ -73,7 +77,7 @@ def plot_with_best_fit(
     return fit, cov
 
 ###### PLOTTING A HISTOGRAM WITH A FIT ######
-def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650, log_plot=False):
+def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3400,18], plot=False, xlim1=3300, xlim2=3650, log_plot=False):
     '''
     Plotting histogram to determine gaussian fit of flux hist 
     nbins is the number of bins  
@@ -82,17 +86,35 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3420,18], pl
     x_lims1,2 are x-axis range
     log_plot determines returns hist with uncertainty if true 
     '''
+    # turn the data into a 1D array
     data_flat = np.ravel(data)
-    hist_y, hist_edges = np.histogram(data, bins=nbins)
+    # remove any low valued points that affect fitting from the array that are due to removed sources
+    data_flat_clean = data_flat[data_flat > 0]
+    
+    if len(data_flat_clean) == 0: # return initial guess if only have zeros in data
+        return p0, np.zeros((3,3))
+    
+    hist_y, hist_edges = np.histogram(data_flat_clean, bins=nbins)
     hist_centers = 0.5*(hist_edges[1:] + hist_edges[:-1])
     hist_error = np.sqrt(hist_y)
-    hist_fit, hist_cov = curve_fit(fit_func, hist_centers, hist_y, p0)
+    
+    # remove the zero frequency points to fit the gaussian
+    zeros = np.where(hist_y==0) # find the indices of zero points
+    y_lst = list(hist_y) # keep only the non-zero points
+    centers_lst = list(hist_centers)# turns centers into list 
+    for index in sorted(zeros[0], reverse=True): # delete the zero points in reverse order
+        del y_lst[index]    
+        del centers_lst[index]
+    hist_y_clean = np.array(y_lst)
+    hist_centers_clean = np.array(centers_lst) # turn list back into array to fit
+    hist_fit, hist_cov = curve_fit(fit_func, hist_centers_clean, hist_y_clean, p0)
+    
     if plot == True:
         x_hist_fit = np.linspace(xlim1, xlim2, 1000)
         plt.plot(x_hist_fit, fit_func(x_hist_fit, *hist_fit), color='black', label = 'gaussian fit')
         plt.errorbar(hist_centers, hist_y, yerr= hist_error, color='red', fmt='x')
-        plt.hist(data_flat, bins=nbins, label ='Pixel Counts')
-        plt.xlim(xlim1,xlim2)
+        plt.hist(data_flat_clean, bins=nbins, label ='Pixel Counts')
+        # plt.xlim(xlim1,xlim2)
         plt.title(title)
         plt.legend()
         plt.show()
@@ -220,7 +242,7 @@ def find_source(data):
     # matrix i=y, j=x
     return max_val, locy, locx
 
-def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
+def source_radius(data, locx, locy, nbins = 500, p0=[7e6,3420,18], plot=False, xlim1=3300, xlim2=3650):
     '''
     Determines the source radius 
     Input : 
@@ -235,7 +257,7 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
     locx = int(locx)
     locy = int(locy)
     # pick out an area around the source
-    l = 50 
+    l = 100 # don't make this smaller or you run into issues
     r1 = 0
     r2 = 0
     r3 = 0
@@ -244,7 +266,7 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
     background_fit, background_cov = histogram_fit(data_local, nbins, p0=p0, plot=plot, xlim1=xlim1, xlim2=xlim2)
     background = background_fit[1]
     sigma = background_fit[2]
-    edge = background + 3 * sigma # anything below this is defined as background
+    edge = background + 2.5 * sigma # anything below this is defined as background
    
     # find the radius of the detected star
     data_scan1 = data[locy:locy+30, locx] # limit the region that we are searching
@@ -271,7 +293,7 @@ def source_radius(data, locx, locy, nbins = 1000, p0=[7e6,3420,18], plot=False, 
             break  
         
     r = np.max([r1, r2, r3, r4])
-    return r, edge
+    return r, background+5*sigma
 
 ###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
 def detect_sources(input_data, mask):
@@ -301,16 +323,22 @@ def detect_sources(input_data, mask):
     total_flux = ['total flux for aperture']
     back_contrib =['contribution of background to source']
     
+    # progress bar
+    bar_cls = IncrementalBar #, PixelBar, ShadyBar):
+    suffix = '%(percent)d%% [%(elapsed_td)s / %(eta)d / %(eta_td)s]'
+    bar = bar_cls(bar_cls.__name__, suffix=suffix, max=400)
+    
     # count the number of sources and get the photometery stuff out of it
-    for i in range(0, 500): # set a high number of sources
-        # print(i)
+    for i in range(0, 400): # set a high number of sources
+        bar.next()
         # find the source
         max_val, ylocs, xlocs = find_source(input_data)
         # print(f'{max_val=}, {ylocs=}, {xlocs=}')
         
         # stop if got stuck or detecting too faint things
-        if stop==1 or max_val < background + 3 * sigma:
+        if stop==1 or max_val < background + 10 * sigma:
             print(f'Counting Stopped Short at {i=}, {counter=}')
+            bar.finish()
             break
         
         # print(f'{max_val=}')
@@ -324,7 +352,7 @@ def detect_sources(input_data, mask):
             r, local_edge = source_radius(input_data, x, y, nbins=500, p0=[A, background, sigma]) 
             # print(f'{r=}, {local_edge=}')
             if max_val > local_edge:
-                if r <= 3: # not countign small objects that could be noise
+                if r <= 2: # not countign small objects that could be noise
                     mask[y,x] = 0 # remove 1 random bright pixel
                     input_data *= mask
                     # print(f'found small object {x=}, {y=}')
@@ -357,7 +385,7 @@ def detect_sources(input_data, mask):
                 for px2 in range(200):
                     for py2 in range(200):
                         # print(f'{px2=}, {py2=}')
-                        current_background_flux = remove_circle(px2, py2, x, y, r+5, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
+                        current_background_flux = remove_circle(px2, py2, x, y, r+2, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
                         if current_background_flux != None:
                             # print(current_background_flux)
                             back_flux_each.append(current_background_flux)
@@ -400,7 +428,9 @@ def detect_sources(input_data, mask):
     return counter, source_flux
 
 
-
+# bar = IncrementalBar(bold('Corolored'), color='green')
+# for i in bar.iter(range(200)):
+#     time.sleep(1)
 
 
 
