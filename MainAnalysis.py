@@ -13,6 +13,10 @@ from scipy.optimize import curve_fit
 import CatalogueSaving as s
 import FunctionsFile as func
 import csv
+import time as time
+from progress.bar import IncrementalBar
+from progress.colors import bold
+#%
 
 point_0 = 2.53e1
 point_0_un = 2e-2
@@ -67,32 +71,41 @@ global_A = global_background_fit[0]
 global_background = global_background_fit[1]
 global_sigma = global_background_fit[2]
 
-#%%
+print('global background complete')
+
+#%% GATHERING ALL THE DATA
+
 ###### IMAGE MASKING ######
-import time
 
 mask_array = np.ones(np.shape(data)) # initially all 1
 
 # remove circular parts
-for px in range(600):
-    for py in range(600):
+# progress bar
+bar_cls = IncrementalBar #, PixelBar, ShadyBar):
+suffix = '%(percent)d%% [%(elapsed_td)s / %(eta)d / %(eta_td)s]'
+bar = bar_cls(bar_cls.__name__, suffix=suffix, max=650)
+for px in range(650):
+    bar.next()
+    for py in range(650):
         # remove circle parts
-        func.remove_circle(px, py, 1220, 3000, 240, data, mask_array)
+        func.remove_circle(px, py, 1220, 3000, 300, data, mask_array)
         func.remove_circle(px, py, 558, 3105, 45, data, mask_array)
         func.remove_circle(px, py, 757, 2555, 40, data, mask_array)
         func.remove_circle(px, py, 687, 2066, 45, data, mask_array)
         func.remove_circle(px, py, 1917, 3540, 30, data, mask_array)
-        func.remove_circle(px, py, 1872, 1203, 30, data, mask_array)
+bar.finish()
 # remove triangular parts
+bar = bar_cls(bar_cls.__name__, suffix=suffix, max=300)
 for px in range(300):
+    bar.next()
     for py in range(1100, 1350):
         func.remove_triangle(px, py, 1161, -1, 1275, -1, 1222, 57, mask_array)
         func.remove_triangle(px, py, 1121, 103, 1287, 103, 1227, 171, mask_array)
         func.remove_triangle(px, py, 1124, 216, 1303, 216, 1220, 274, mask_array)
-
+bar.finish()
 # removing any rectangular points
 # rectangles associated with stars
-mask_array[:, 1205:1240] = 0 
+mask_array[:, 1200:1245] = 0 
 mask_array[2980:3198, 555:564] = 0
 mask_array[2484:2616, 753:760] = 0
 mask_array[2003:2136, 684:691] = 0
@@ -102,7 +115,7 @@ mask_array[95:104, 803:1487] = 0
 mask_array[207:217, 887:1434] = 0 
 # other random points
 mask_array[207:210, 810:826] = 0
-mask_array[205:232, 819:822] = 0
+mask_array[205:232, 815:822] = 0
 mask_array[114:135, 1424:1431] = 0
 # removing noisy section in top left corner
 mask_array[4090:, :90] = 0
@@ -110,10 +123,12 @@ mask_array[4090:, :90] = 0
 data_no_bleed = mask_array * data
 fits.writeto('no_bleed_data.fits', data_no_bleed, overwrite=True)
 
+print()
 print('removing bleeds is complete')
+print()
 
 ###### DETECTING SOURCES ######
-
+    
 start = time.perf_counter() # start time of the code
 
 data_count=data_no_bleed
@@ -126,62 +141,58 @@ data_count3, mask_count3 = func.reduce_data(data_no_bleed, mask_array, x1=1300, 
 data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=0, y2=3650)
 data_count5, mask_count5 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=-1, y1=3650, y2=-1)
 
-
 counter = 0
-counter1, source_flux1 = func.detect_sources(data_count1, mask_count1)
+# counter1, source_flux1 = func.detect_circles(data_count1, mask_count1)
+# counter += counter1
+# end1 = time.perf_counter()
+# print(f'section 1 complete. Time so far {(end1-start)/60} minutes')
+# counter2, source_flux2 = func.detect_circles(data_count2, mask_count2)
+# counter += counter2
+# end2 = time.perf_counter()
+# print(f'section 2 complete. Time so far {(end2-start)/60} minutes')
+# counter3, source_flux3 = func.detect_circles(data_count3, mask_count3)
+# counter += counter3
+# end3 = time.perf_counter()
+# print(f'section 3 complete. Time so far {(end3-start)/60} minutes')
+# counter4, source_flux4 = func.detect_circles(data_count4, mask_count4)
+# counter += counter4
+# end4 = time.perf_counter()
+# print(f'section 4 complete. Time so far {(end4-start)/60} minutes')
+# counter5, source_flux5 = func.detect_circles(data_count5, mask_count5)
+# counter += counter5
+
+print('Section 1')
+counter1, source_fluxes1 = func.detect_sources(data_count1, mask_count1)
 counter += counter1
-end1 = time.perf_counter()
-print(f'section 1 complete. Time so far {(end1-start)/60} minutes')
-counter2, source_flux2 = func.detect_sources(data_count2, mask_count2)
+print()
+print('Section 2')
+counter2, source_fluxes2 = func.detect_sources(data_count2, mask_count2)
 counter += counter2
-end2 = time.perf_counter()
-print(f'section 2 complete. Time so far {(end2-start)/60} minutes')
-counter3, source_flux3 = func.detect_sources(data_count3, mask_count3)
+print()
+print('Section 3')
+counter3, source_fluxes3 = func.detect_sources(data_count3, mask_count3)
 counter += counter3
-end3 = time.perf_counter()
-print(f'section 3 complete. Time so far {(end3-start)/60} minutes')
-counter4, source_flux4 = func.detect_sources(data_count4, mask_count4)
+print()
+print('Section 4')
+counter4, source_fluxes4 = func.detect_sources(data_count4, mask_count4)
 counter += counter4
-end4 = time.perf_counter()
-print(f'section 4 complete. Time so far {(end4-start)/60} minutes')
-counter5, source_flux5 = func.detect_sources(data_count5, mask_count5)
+print()
+print('Section 5')
+counter5, source_fluxes5 = func.detect_sources(data_count5, mask_count5)
 counter += counter5
 
-# counter, source_flux = func.detect_sources(data_count, mask_count)
+fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
-#%
-# combining the taken data sets
-# data_count = np.concatenate(
-#     (data_count1,
-#      data_count2,
-#      data_count3,
-#      data_count4,
-#      data_count5,
-     # data_count6,
-    # data_count7,
-    # data_count8,
-    # data_count9,
-    # data_count10,
-    # data_count11
-      # ))
+print()
+print(f'Source Counting is Finished, detected {counter} sources')
 
-# fits.writeto('removing_objects.fits', data_count, overwrite=True)
-
-print('Source Counting is Finished')
-
+# combine all the source fluxes into one array
 source_flux = np.concatenate(
-    (source_flux1,
-     source_flux2,
-     source_flux3, 
-     source_flux4, 
-     source_flux5
-     # source_flux6, 
-     # source_flux7,
-     # source_flux8,
-     # source_flux9,
-     # source_flux10,
-     # source_flux11
-      ), 
+    (source_fluxes1,
+      source_fluxes2,
+       source_fluxes3, 
+      source_fluxes4, 
+      source_fluxes5), 
     axis=None)
 
 end = time.perf_counter()
@@ -189,24 +200,24 @@ end = time.perf_counter()
 total_time = (end - start)/60 # find the amount of time it takes to run.
 print(f'{total_time = } minutes')
 
-#%% Writing an ASCII Table using ascii.write() 
+# #%% Writing an ASCII Table using ascii.write() 
 
-#defining data
-data = {'Position x': xvals[1:],
-        'Position y': yvals[1:],
-         'Radius': rs[1:],
-         'Counts Source': total_flux[1:],
-         #'Un counts': un_source_flux,
-         'Source Background': annular_back[1:]}
-         #'Source back un': annular_back_un,}
+# #defining data
+# data = {'Position x': xvals[1:],
+#         'Position y': yvals[1:],
+#          'Radius': rs[1:],
+#          'Counts Source': total_flux[1:],
+#          #'Un counts': un_source_flux,
+#          'Source Background': annular_back[1:]}
+#          #'Source back un': annular_back_un,}
 
-# writing a file with data 
-ascii.write(data, 'catalogue_ap=100.csv', format='csv', overwrite=1)
+# # writing a file with data 
+# ascii.write(data, 'catalogue_ap=100.csv', format='csv', overwrite=1)
 
-#reading the data 
-x_val, y_val, r, total_flux, source_back = np.loadtxt('catalogue_ap=5.csv', delimiter=',', skiprows=2, unpack=1)
+# #reading the data 
+# x_val, y_val, r, total_flux, source_back = np.loadtxt('catalogue_ap=5.csv', delimiter=',', skiprows=2, unpack=1)
 
-#%%
+#%
 # =============================================================================
 # 5.5 Calibrating the fluxes. 
 # Converting instrumental counts to source magnitude
@@ -219,9 +230,12 @@ inst_mag = -2.5 * np.log10(source_flux)
 mag = point_0 + inst_mag # point_0 defined at the top 
 # for point in mag:
 #     if mag >= 13:
-          
-# uncertainty in magnitude 
-mag_fit, mag_cov, mag_centers, mag_freq = func.histogram_fit(mag, nbins=10, fit_func=func.exponential, p0=[1,1.1,8.4], plot=True, xlim1=0, xlim2=15, log_plot=True)
+
+# plt.ylim(0,20)
+plt.hist(mag)
+plt.show()
+
+mag_centers, mag_freq = func.histogram_fit(mag, nbins=15, fit_func=func.exponential, p0=[1,1.1,8.4], plot=True, xlim1=0, xlim2=15, log_plot=True)
 # plt.hist(mag,bins=15)
 plt.show()
 
@@ -249,8 +263,8 @@ log_N = np.log10(N_norm)
 
 # plot the data
 log_fit, log_cov = func.plot_with_best_fit(
-    x = mag_centers, 
-    y = log_N, 
+    x = mag_centers[:10], 
+    y = log_N[:10], 
     title = '', 
     data_label = 'Collected Data', 
     fit_label = 'Linear Fit', 
@@ -261,7 +275,7 @@ log_fit, log_cov = func.plot_with_best_fit(
     fit_func = func.linear)
 plt.plot(mag_centers, log_N, 'x')
 
-print(f'gradient ={log_fit[0]:.3f}')
+print(f'gradient = {log_fit[0]:.3f} ± {np.sqrt(log_cov[0,0]):.3f}')
 
 
 

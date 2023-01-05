@@ -118,10 +118,12 @@ def histogram_fit(data, nbins, title='', fit_func=gaussian, p0=[7e6,3400,18], pl
         plt.title(title)
         plt.legend()
         plt.show()
+        
     if log_plot == False:
         return hist_fit, hist_cov
+    
     elif log_plot == True:
-        return hist_fit, hist_cov, hist_centers, hist_y
+        return hist_centers, hist_y
 
 ###### FINDING A BIT OF DATA THAT YOU WANT TO ANALYSE ######
 def reduce_data(data, mask, x1, x2, y1, y2):
@@ -130,7 +132,7 @@ def reduce_data(data, mask, x1, x2, y1, y2):
     return data_reduced, mask_reduced
     
 ###### IMAGE MASKING ######
-def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=4172, x_len=2135, photometry=0, pixl=0):
+def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=4172, x_len=2135, photometry=0):
     ''' 
     Masking objects assuming circular shapes 
     x_val and y_val are all the coordiante values in image 
@@ -203,6 +205,61 @@ def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=41
         elif photometry == 1:
             return reduced_data[y_val, x_val]
          
+def remove_object(data, mask, y_center, x_center, edge, remove=True):
+    start = [y_center, x_center]
+    # list of the points that are above the background value
+    points_to_visit = [start]
+    points_visited = [] # array of the points already visited
+    point = start
+    no_pixls = 0 # number of pixels in the source
+    flux = 0 # addeing up the values of the pixels in the source
+
+    while points_to_visit: # whilst there is something inside the list
+        # print(f'number of points left to visit = {len(points_to_visit)}')
+        point = points_to_visit.pop(0)
+        # print(f'{point=}')
+
+        y, x = point # x and y coordinates of the point in source
+        val = data[y][x] # count of particular pixel
+        mask[y, x] = 0 # remove the pixel we are looking at
+
+        for direction in (
+            (0, 1),
+            (0, -1),
+            (1, 0),
+            (-1, 0),
+        ):
+            new_point = (y + direction[0], x + direction[1])
+            new_y, new_x = new_point
+            
+            # make sure there are no repeats of points
+            if new_point in points_visited:
+                # print('found an already visited point')
+                continue
+            
+            points_visited.append(new_point)
+            
+            # ensure within the range of the data
+            if new_y < 0 or new_y >= len(data): 
+                # print('found an out of bounds point')
+                continue
+            if new_x < 0 or new_x >= len(data[0]):
+                # print('found and out of bounds point')
+                continue
+            
+            # found a new value to add to the list
+            new_val = data[new_y][new_x]
+            
+            if new_val >= edge: # add the point to sections to look at if useful
+                points_to_visit.append(new_point) # add the point to a useful point
+                no_pixls += 1 # add 1 to the number of points in source
+                flux += val # add the value of the pixel in the source to the flux value
+                if remove == True:
+                    mask[new_y, new_x] = 0
+                    # data *= mask
+           
+    return no_pixls, flux
+
 def remove_triangle(x_val, y_val, x1, y1, x2, y2, x3, y3, mask_array):
     '''
     Masking triangular shapes due to bleeding  
@@ -257,7 +314,7 @@ def source_radius(data, locx, locy, nbins = 500, p0=[7e6,3420,18], plot=False, x
     locx = int(locx)
     locy = int(locy)
     # pick out an area around the source
-    l = 100 # don't make this smaller or you run into issues
+    l = 500 # don't make this smaller or you run into issues
     r1 = 0
     r2 = 0
     r3 = 0
@@ -266,7 +323,7 @@ def source_radius(data, locx, locy, nbins = 500, p0=[7e6,3420,18], plot=False, x
     background_fit, background_cov = histogram_fit(data_local, nbins, p0=p0, plot=plot, xlim1=xlim1, xlim2=xlim2)
     background = background_fit[1]
     sigma = background_fit[2]
-    edge = background + 2.5 * sigma # anything below this is defined as background
+    edge = background + 2 * sigma # anything below this is defined as background
    
     # find the radius of the detected star
     data_scan1 = data[locy:locy+30, locx] # limit the region that we are searching
@@ -293,10 +350,10 @@ def source_radius(data, locx, locy, nbins = 500, p0=[7e6,3420,18], plot=False, x
             break  
         
     r = np.max([r1, r2, r3, r4])
-    return r, background+5*sigma
+    return r, background+3*sigma
 
 ###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
-def detect_sources(input_data, mask):
+def detect_circles(input_data, mask):
     y_len = np.shape(input_data)[0]
     x_len = np.shape(input_data)[1]
     # find the background in this section
@@ -316,6 +373,7 @@ def detect_sources(input_data, mask):
     
     # information we are getting from the searching
     counter = 0
+    negative_objects = 0
     xvals = ['object x centers']
     yvals = ['object y centers']
     rs = []
@@ -326,17 +384,17 @@ def detect_sources(input_data, mask):
     # progress bar
     bar_cls = IncrementalBar #, PixelBar, ShadyBar):
     suffix = '%(percent)d%% [%(elapsed_td)s / %(eta)d / %(eta_td)s]'
-    bar = bar_cls(bar_cls.__name__, suffix=suffix, max=400)
+    bar = bar_cls(bar_cls.__name__, suffix=suffix, max=380)
     
-    # count the number of sources and get the photometery stuff out of it
-    for i in range(0, 400): # set a high number of sources
+    # count the number of sources and get the photometry stuff out of it
+    for i in range(0, 380): # set a high number of sources
         bar.next()
         # find the source
         max_val, ylocs, xlocs = find_source(input_data)
         # print(f'{max_val=}, {ylocs=}, {xlocs=}')
         
         # stop if got stuck or detecting too faint things
-        if stop==1 or max_val < background + 10 * sigma:
+        if stop==1 or max_val < background + 3 * sigma:
             print(f'Counting Stopped Short at {i=}, {counter=}')
             bar.finish()
             break
@@ -351,6 +409,8 @@ def detect_sources(input_data, mask):
             
             r, local_edge = source_radius(input_data, x, y, nbins=500, p0=[A, background, sigma]) 
             # print(f'{r=}, {local_edge=}')
+            range_val = int(10 * r)
+            
             if max_val > local_edge:
                 if r <= 2: # not countign small objects that could be noise
                     mask[y,x] = 0 # remove 1 random bright pixel
@@ -365,9 +425,9 @@ def detect_sources(input_data, mask):
                     stop=1
                     break
                 
-                # go through each pixel in reduceed box
-                for px in range(150):
-                    for py in range(150):
+                # go through each pixel in reduced box
+                for px in range(range_val):
+                    for py in range(range_val):
                         # determining total flux for fixed aperture
                         # print(f'{px=}, {py=}')
                         current_total_flux = remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
@@ -382,10 +442,10 @@ def detect_sources(input_data, mask):
                 # see_image(input_data)
                 
                 # go through each pixel now the object has been removed
-                for px2 in range(200):
-                    for py2 in range(200):
+                for px2 in range(range_val):
+                    for py2 in range(range_val):
                         # print(f'{px2=}, {py2=}')
-                        current_background_flux = remove_circle(px2, py2, x, y, r+2, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
+                        current_background_flux = remove_circle(px2, py2, x, y, r+10, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
                         if current_background_flux != None:
                             # print(current_background_flux)
                             back_flux_each.append(current_background_flux)
@@ -412,6 +472,7 @@ def detect_sources(input_data, mask):
             
             source_flux_each = sum(total_flux_each) - back_contrib_each
             if source_flux_each < 0:
+                negative_objects += 1
                 # print('NEGATIVE SOURCE FLUX')
                 # print(f'{i=}, {x=}, {y=}, {r=}')
                 # print(f'{annular_no_pixls=}, {back_no_pixls=}, {source_no_pixls=}')
@@ -424,13 +485,89 @@ def detect_sources(input_data, mask):
                 yvals.append(y)
                 rs.append(r)
                 counter += 1 # counting the number of detected objects  
-        
+                
     return counter, source_flux
 
+def detect_sources(input_data, mask):
+    stop = 0 # used to stop entire for loop if stuck on a point 
+    counter = 0
+    y_vals = ['source y centers']
+    x_vals = [' source x centers']
+    source_fluxes = []
+    annular_fluxes = []
+    
+    y_len = np.shape(input_data)[0]
+    x_len = np.shape(input_data)[1]
+    
+    # find the background in this section
+    background_fit, background_cov = histogram_fit(
+        input_data, 
+        nbins=4000, 
+        title='Background', 
+        fit_func=gaussian, 
+        plot=False)
+    
+    A = background_fit[0]
+    background = background_fit[1]
+    sigma = background_fit[2]
+    edge = background + 3.5 * sigma
+    annular_edge = background + 2 * sigma
+    print(f'{A=}, {background=}, {sigma=}')
+    
+    max_fev = 400
+    # progress bar
+    bar_cls = IncrementalBar #, PixelBar, ShadyBar):
+    suffix = '%(percent)d%% [%(elapsed_td)s / %(eta)d / %(eta_td)s]'
+    bar = bar_cls(bar_cls.__name__, suffix=suffix, max=max_fev)
+    
+    for i in range(max_fev):
+        # print(f'{i=}')
+        bar.next()
+        max_val, locy, locx = find_source(input_data)
+        # print(f'{max_val=}, {locy=}, {locx=}')
+        
+        if max_val <= edge:
+            print(f'counting stopped short at {i=}')
+            bar.finish()
+            break
+        
+        elif max_val >= edge:     
+            for y_center, x_center in zip(locy, locx):
+                y_center, x_center = int(y_center), int(x_center)
+                r, local_edge = source_radius(input_data, x_center, y_center, p0=[A,background,sigma])
+                if y_center == y_vals[-1] and x_center == x_vals[-1]:
+                    print(f' stuck on a point {i=}. {y_center=}. {x_center=}')
+                # annular_pixls, annular_flux = remove_object(input_data, mask, y_center, x_center, annular_edge, remove=False)
+                for px in range(3*r):
+                    for py in range(3*r):
+                        annular_flux_current = remove_circle(px, py, x_center, y_center, r+5, input_data, mask, y_len, x_len, 1)
+                        if annular_flux_current != None:
+                            # print(annular_flux_current)
+                            annular_fluxes.append(annular_flux_current)
+                
+                source_pixls, total_flux = remove_object(input_data, mask, y_center, x_center, edge, remove=True)
+                
+                if source_pixls >= 15: # only add big enough sources
+                    counter += 1
+                    y_vals.append(y_center)
+                    x_vals.append(x_center)
+                    
+                    # finding flux of source without background contribution
+                    annular_flux = np.sum(annular_fluxes)
+                    annular_pixls = len(annular_fluxes)
+                    # print(f'{annular_flux=}, {annular_pixls=}')
+                    back_flux = annular_flux - total_flux
+                    back_pixls = annular_pixls - source_pixls
+                    back_density = back_flux / back_pixls
+                    back_contrib = back_density * source_pixls # contribution of background to the source 
+                    source_flux = total_flux - back_contrib
+                    source_fluxes.append(source_flux) # add this source the list of all sources
+                    # print(f'{back_pixls=}, {source_flux=}')
+                input_data *= mask
 
-# bar = IncrementalBar(bold('Corolored'), color='green')
-# for i in bar.iter(range(200)):
-#     time.sleep(1)
+    return counter, source_fluxes
+    
+    
 
 
 
