@@ -527,11 +527,11 @@ def detect_sources(input_data, mask):
     A = background_fit[0]
     background = background_fit[1]
     sigma = background_fit[2]
-    edge = background + 3.5 * sigma
-    annular_edge = background + 2 * sigma
-    print(f'{A=}, {background=}, {sigma=}')
+    edge = background + 2 * sigma
+    # annular_edge = background + 2 * sigma
+    print(f'{edge=}')
     
-    max_fev = 400
+    max_fev = 600
     # progress bar
     bar_cls = IncrementalBar #, PixelBar, ShadyBar):
     suffix = '%(percent)d%% [%(elapsed_td)s / %(eta)d / %(eta_td)s]'

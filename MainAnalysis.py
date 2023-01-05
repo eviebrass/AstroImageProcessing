@@ -135,11 +135,10 @@ data_count=data_no_bleed
 mask_count=mask_array
 
 # split these up by eye into sections that appear to have the same background
-data_count1, mask_count1 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=0, y2=2400)
+data_count1, mask_count1 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=0, y2=3650)
 data_count2, mask_count2 = func.reduce_data(data_no_bleed, mask_array, x1=1300, x2=-1, y1=0, y2=900)
 data_count3, mask_count3 = func.reduce_data(data_no_bleed, mask_array, x1=1300, x2=-1, y1=900, y2=3650)
-data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=1300, y1=2400, y2=3650)
-data_count5, mask_count5 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=-1, y1=3650, y2=-1)
+data_count4, mask_count4 = func.reduce_data(data_no_bleed, mask_array, x1=0, x2=-1, y1=3650, y2=-1)
 
 counter = 0
 # counter1, source_flux1 = func.detect_circles(data_count1, mask_count1)
@@ -162,38 +161,33 @@ counter = 0
 # counter += counter5
 
 print('Section 1')
-counter1, source_fluxes1 = func.detect_circles(data_count1, mask_count1)
+counter1, source_fluxes1 = func.detect_sources(data_count1, mask_count1)
 counter += counter1
 print()
-# print('Section 2')
-# counter2, source_fluxes2 = func.detect_sources(data_count2, mask_count2)
-# counter += counter2
-# print()
+print('Section 2')
+counter2, source_fluxes2 = func.detect_sources(data_count2, mask_count2)
+counter += counter2
+print()
 print('Section 3')
-counter3, source_fluxes3 = func.detect_circles(data_count3, mask_count3)
+counter3, source_fluxes3 = func.detect_sources(data_count3, mask_count3)
 counter += counter3
 print()
 print('Section 4')
-counter4, source_fluxes4 = func.detect_circles(data_count4, mask_count4)
+counter4, source_fluxes4 = func.detect_sources(data_count4, mask_count4)
 counter += counter4
-print()
-print('Section 5')
-counter5, source_fluxes5 = func.detect_circles(data_count5, mask_count5)
-counter += counter5
  
 fits.writeto('removing_objects.fits', data_count, overwrite=True)
 
 print()
 print(f'Source Counting is Finished, detected {counter} sources')
 
-source_flux= source_fluxes3
+# source_flux= source_fluxes3
 # combine all the source fluxes into one array
 source_flux = np.concatenate(
     (source_fluxes1,
-      # source_fluxes2,
-        source_fluxes3, 
-      source_fluxes4, 
-      source_fluxes5), 
+     source_fluxes2,
+     source_fluxes3, 
+     source_fluxes4),
     axis=None)
 
 end = time.perf_counter()
