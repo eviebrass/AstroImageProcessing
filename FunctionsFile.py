@@ -130,6 +130,15 @@ def reduce_data(data, mask, x1, x2, y1, y2):
     data_reduced = data[y1:y2, x1:x2]
     mask_reduced = mask[y1:y2, x1:x2]
     return data_reduced, mask_reduced
+
+###### CHECKING WHETHER A POINT IS WITHIN A CIRCLE ######
+def circle_check(x, y, a, b, r):
+    x_mag = (x - a) ** 2
+    y_mag = (y - b) ** 2
+    r_sq = r * r
+    if x_mag + y_mag <= r_sq:
+        return True
+
     
 ###### IMAGE MASKING ######
 def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=4172, x_len=2135, photometry=0):
@@ -191,13 +200,13 @@ def remove_circle(x_val, y_val, x_center, y_center, r, data, mask_array,y_len=41
         reduced_mask = mask_array[0:y_center+l+1, x_center-l:x_center+l+1]
         reduced_data = data[0:y_center+l+1, x_center-l:x_center+l+1]
 
-    x_mag = (x - x_center) * (x - x_center)
-    y_mag = (y - y_center) * (y - y_center)
-    r_sq = r * r
+    # x_mag = (x - x_center) * (x - x_center)
+    # y_mag = (y - y_center) * (y - y_center)
+    # r_sq = r * r
     xmax = np.shape(reduced_mask)[1] # dont want to go longer than the reduced mass size
     ymax = np.shape(reduced_mask)[0]
     
-    if x_mag + y_mag < r_sq and x_val < xmax and y_val < ymax: 
+    if circle_check(x, y, x_center, y_center, r) and x_val < xmax and y_val < ymax: 
         # xmax and ymax mean don't go outside mask array size
         # if not doing photometry then mask section
         if photometry == 0:
@@ -352,6 +361,18 @@ def source_radius(data, locx, locy, nbins = 500, p0=[7e6,3420,18], plot=False, x
     r = np.max([r1, r2, r3, r4])
     return r, background+3*sigma
 
+###### FUNCTION TO FIND THE FLUX OF A SOURCE WITHOUT THE BACKGROUND CONTRIBUTION ######
+def find_source_flux(annular_fluxes, total_flux, source_pixls):
+    # finding flux of source without background contribution
+    annular_flux = np.sum(annular_fluxes)
+    annular_pixls = len(annular_fluxes)
+    back_flux = annular_flux - total_flux
+    back_pixls = annular_pixls - source_pixls
+    back_density = back_flux / back_pixls
+    back_contrib = back_density * source_pixls # contribution of background to the source 
+    source_flux = total_flux - back_contrib
+    return source_flux
+
 ###### DETECTING ALL SOURCES GIVEN IN AN AREA ######
 def detect_circles(input_data, mask):
     y_len = np.shape(input_data)[0]
@@ -378,8 +399,6 @@ def detect_circles(input_data, mask):
     yvals = ['object y centers']
     rs = []
     source_flux = []
-    total_flux = ['total flux for aperture']
-    back_contrib =['contribution of background to source']
     
     # progress bar
     bar_cls = IncrementalBar #, PixelBar, ShadyBar):
@@ -404,8 +423,9 @@ def detect_circles(input_data, mask):
             # print(x,y)
             
             # reset the values for calculating flux for each object
-            total_flux_each = [] # flux of a source + background in area of source
+            total_flux_each = 0 # flux of a source + background in area of source
             back_flux_each = [] # total flux of background 
+            source_pixls = 0
             
             r, local_edge = source_radius(input_data, x, y, nbins=500, p0=[A, background, sigma]) 
             # print(f'{r=}, {local_edge=}')
@@ -430,25 +450,22 @@ def detect_circles(input_data, mask):
                     for py in range(range_val):
                         # determining total flux for fixed aperture
                         # print(f'{px=}, {py=}')
+                        current_background_flux = remove_circle(px, py, x, y, r+10, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
                         current_total_flux = remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
+                        # remove the object now got information about it
+                        remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len, photometry=0)
+                        if current_background_flux != None:
+                            back_flux_each.append(current_background_flux)
                         if current_total_flux != None:
-                            # print(current_total_flux)
-                            total_flux_each.append(current_total_flux)
-                        # remove the source now obtained information
-                        remove_circle(px, py, x, y, r, input_data, mask, y_len=y_len, x_len=x_len)
+                            total_flux_each += current_total_flux
+                            source_pixls +=1
+                            
+                source_flux_each = find_source_flux(back_flux_each, total_flux_each, source_pixls)
+                
                 # print(f'normal object_masked')
                 input_data *= mask
                 
                 # see_image(input_data)
-                
-                # go through each pixel now the object has been removed
-                for px2 in range(range_val):
-                    for py2 in range(range_val):
-                        # print(f'{px2=}, {py2=}')
-                        current_background_flux = remove_circle(px2, py2, x, y, r+10, input_data, mask, y_len=y_len, x_len=x_len, photometry=1)
-                        if current_background_flux != None:
-                            # print(current_background_flux)
-                            back_flux_each.append(current_background_flux)
                         
             elif max_val <= local_edge:
                 # print(f'object too faint, {i=}, {max_val=}')
@@ -459,18 +476,18 @@ def detect_circles(input_data, mask):
             # make sure done required masking
             input_data *= mask
             
-            annular_no_pixls = len(back_flux_each)
-            source_no_pixls = len(total_flux_each)
+            # annular_no_pixls = len(back_flux_each)
+            # source_no_pixls = len(total_flux_each)
             
-            back_no_pixls = annular_no_pixls - source_no_pixls # number of pixels in the ring around source
+            # back_no_pixls = annular_no_pixls - source_no_pixls # number of pixels in the ring around source
             
-            # background flux per pixel (background flux density)
-            back_density = int(sum(back_flux_each)) / back_no_pixls # denisty of background
-            # find the contribution of background flux to source flux
-            back_contrib_each = back_density * source_no_pixls
-            # back_contrib.append(back_contrib_each)
+            # # background flux per pixel (background flux density)
+            # back_density = np.sum(back_flux_each) / back_no_pixls # denisty of background
+            # # find the contribution of background flux to source flux
+            # back_contrib_each = back_density * source_no_pixls
+            # # back_contrib.append(back_contrib_each)
             
-            source_flux_each = sum(total_flux_each) - back_contrib_each
+            # source_flux_each = sum(total_flux_each) - back_contrib_each
             if source_flux_each < 0:
                 negative_objects += 1
                 # print('NEGATIVE SOURCE FLUX')
@@ -534,13 +551,13 @@ def detect_sources(input_data, mask):
         elif max_val >= edge:     
             for y_center, x_center in zip(locy, locx):
                 y_center, x_center = int(y_center), int(x_center)
-                r, local_edge = source_radius(input_data, x_center, y_center, p0=[A,background,sigma])
+                # r, local_edge = source_radius(input_data, x_center, y_center, p0=[A,background,sigma])
                 if y_center == y_vals[-1] and x_center == x_vals[-1]:
                     print(f' stuck on a point {i=}. {y_center=}. {x_center=}')
                 # annular_pixls, annular_flux = remove_object(input_data, mask, y_center, x_center, annular_edge, remove=False)
-                for px in range(3*r):
-                    for py in range(3*r):
-                        annular_flux_current = remove_circle(px, py, x_center, y_center, r+5, input_data, mask, y_len, x_len, 1)
+                for px in range(90):
+                    for py in range(90):
+                        annular_flux_current = remove_circle(px, py, x_center, y_center, 40, input_data, mask, y_len, x_len, 1)
                         if annular_flux_current != None:
                             # print(annular_flux_current)
                             annular_fluxes.append(annular_flux_current)
@@ -552,15 +569,7 @@ def detect_sources(input_data, mask):
                     y_vals.append(y_center)
                     x_vals.append(x_center)
                     
-                    # finding flux of source without background contribution
-                    annular_flux = np.sum(annular_fluxes)
-                    annular_pixls = len(annular_fluxes)
-                    # print(f'{annular_flux=}, {annular_pixls=}')
-                    back_flux = annular_flux - total_flux
-                    back_pixls = annular_pixls - source_pixls
-                    back_density = back_flux / back_pixls
-                    back_contrib = back_density * source_pixls # contribution of background to the source 
-                    source_flux = total_flux - back_contrib
+                    source_flux = find_source_flux(annular_fluxes, total_flux, source_pixls)
                     source_fluxes.append(source_flux) # add this source the list of all sources
                     # print(f'{back_pixls=}, {source_flux=}')
                 input_data *= mask
